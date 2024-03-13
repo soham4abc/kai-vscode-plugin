@@ -33,10 +33,12 @@ export class AnalyzerResults {
 
     config: RhamtConfiguration;
     jsonResults: any;
-
+    
     private _model: AnalyzerResults.Model;
-
+     
+   
     constructor(jsonResults: any, config: RhamtConfiguration) {
+        
         this.jsonResults = jsonResults;
         this.config = config;
     }
@@ -44,6 +46,8 @@ export class AnalyzerResults {
     init(): Promise<void> {
         this._model = {hints: [], classifications: []};
         const rulesets = this.jsonResults[0]['rulesets'];
+        const outputChannel1 = vscode.window.createOutputChannel("Analyzer Result");
+            outputChannel1.show(true);
         rulesets.forEach(ruleset => {
             const violations = ruleset.violations;
             if (violations) {
@@ -56,6 +60,8 @@ export class AnalyzerResults {
                             const root = vscode.workspace.workspaceFolders[0];
                             const fileUri = vscode.Uri.joinPath(root.uri, file);
                             try {
+                                outputChannel1.appendLine(incident.violation);
+                                outputChannel1.appendLine (`Hint: ${JSON.stringify(incident.variables, null, 2)}`);
                                 const hint = {
                                     type: IIssueType.Hint,
                                     id: ModelService.generateUniqueId(),
@@ -63,6 +69,7 @@ export class AnalyzerResults {
                                     file: fileUri.fsPath,
                                     severity: '',
                                     ruleId: violationKey,
+                                    rulesetName: ruleset.name,
                                     effort: '',
                                     title: '',
                                     links: [],
@@ -76,8 +83,10 @@ export class AnalyzerResults {
                                     configuration: this.config,
                                     dom: incident,
                                     complete: false,
-                                    origin: ''
+                                    origin: '',
+                                    variables: incident.variables ? incident.variables: '',
                                 };
+                                outputChannel1.appendLine (`Hint: ${JSON.stringify(hint.variables, null, 2)}`);
                                 this.model.hints.push(hint);
 
                             } catch (e) {

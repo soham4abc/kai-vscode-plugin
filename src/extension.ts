@@ -9,6 +9,7 @@ import { RhamtView } from './explorer/rhamtView';
 import { ModelService } from './model/modelService';
 import { RhamtModel, IssueContainer } from './server/analyzerModel';
 import { IssueDetailsView } from './issueDetails/issueDetailsView';
+import { KaiFixDetails } from './kaiFix/kaiFix';
 import { ReportView } from './report/reportView';
 import { ConfigurationEditorService } from './editor/configurationEditorService';
 import { HintItem } from './tree/hintItem';
@@ -38,7 +39,7 @@ export function getStateLocation(): string {
 export async function activate(context: vscode.ExtensionContext) {
 
     extensionPath = context.extensionPath;
-    
+
     await Utils.loadPackageInfo(context);
     stateLocation = path.join(os.homedir(), '.windup', 'tooling', 'vscode');
 
@@ -56,6 +57,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const markerService = new MarkerService(context, modelService);
     new RhamtView(context, modelService, configEditorService, markerService);
     new ReportView(context);
+    new KaiFixDetails(context, modelService);
     detailsView = new IssueDetailsView(context, locations, modelService);
     
     context.subscriptions.push(vscode.commands.registerCommand('rhamt.openDoc', async (data) => {

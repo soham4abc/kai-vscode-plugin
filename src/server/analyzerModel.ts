@@ -145,6 +145,7 @@ export interface IIssue extends IUniqueElement {
     file: string;
     severity: string;
     ruleId: string;
+    rulesetName: string;
     effort: string;
     links: ILink[];
     report: string;
@@ -189,6 +190,7 @@ export interface IHint extends IIssue {
     length: number;
     sourceSnippet: string;
     hint: string;
+    variables: Map<string,string>;
 }
 
 export interface IClassification extends IIssue {
