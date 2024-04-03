@@ -25,6 +25,7 @@ export class KaiFixDetails {
     private activeDiffUri: vscode.Uri | undefined;
     private myWebviewView?: vscode.WebviewView;
     private myWebViewProvider: MyWebViewProvider;
+    private outputChannel: vscode.OutputChannel;
 
 
     constructor(context: ExtensionContext, modelService: ModelService) {
@@ -48,14 +49,14 @@ export class KaiFixDetails {
             const hint = issue as IHint;
             this.issueFilePath = issue.file;
             const fs = require('fs').promises;
-            const outputChannel = vscode.window.createOutputChannel("Kai-Fix Result");
-            outputChannel.show(true);
+            this.outputChannel = vscode.window.createOutputChannel("Kai-Fix Result");
+            this.outputChannel.show(true);
             let workspaceFolder = vscode.workspace.workspaceFolders[0].name;
-            outputChannel.appendLine("Generating the fix: ");
-            outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
-            outputChannel.appendLine(`Ruleset Name: ${hint.rulesetName}.`);
-            outputChannel.appendLine(`Ruleset ID: ${hint.ruleId}.`);
-            outputChannel.appendLine(`Variables: ${JSON.stringify(hint.variables, null, 2)}`);
+            this.outputChannel.appendLine("Generating the fix: ");
+            this.outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
+            this.outputChannel.appendLine(`Ruleset Name: ${hint.rulesetName}.`);
+            this.outputChannel.appendLine(`Ruleset ID: ${hint.ruleId}.`);
+            this.outputChannel.appendLine(`Variables: ${JSON.stringify(hint.variables, null, 2)}`);
             const content = await fs.readFile(this.issueFilePath, { encoding: 'utf8' });
        
                 const postData = {
@@ -106,13 +107,13 @@ export class KaiFixDetails {
                     vscode.window.showInformationMessage(` response: ${await response.text()}.`);
                     throw new Error(`HTTP error! status: ${response.status}`);  
                 }
-                vscode.window.showInformationMessage(`Yay! Kyma ${response.status}.`);
+                //vscode.window.showInformationMessage(`Yay! Kyma ${response.status}.`);
                 const responseText = await response.text(); // Get the raw response text
                 console.log(responseText);
 
                
                 const formattedOutput = this.displayFormattedLLMOutput(responseText);
-                outputChannel.appendLine(formattedOutput);
+                this.outputChannel.appendLine(formattedOutput);
                 const updatedFile = this.getUpdatedFileSection(formattedOutput);
                 // Create a virtual document URI using the custom scheme
                 //const encodedText = encodeURIComponent(responseText);
@@ -120,7 +121,7 @@ export class KaiFixDetails {
                
             
             const tampFileName = 'Kai-fix'+hint.lineNumber+hint.ruleId+this.getFileName(this.issueFilePath);
-            outputChannel.appendLine(`Tamp Filename: ${tampFileName}.`);
+            this.outputChannel.appendLine(`Temp Filename: ${tampFileName}.`);
             // Generate a unique temp file path
             this.tempFileUri = await this.writeToTempFile(updatedFile,tampFileName);
 
@@ -158,12 +159,12 @@ export class KaiFixDetails {
 
 
             const fs = require('fs').promises;
-            const outputChannel = vscode.window.createOutputChannel("Kai-Fix Result");
-            outputChannel.show(true);
+            this.outputChannel = vscode.window.createOutputChannel("Kai-Fix All");
+            this.outputChannel.show(true);
             let workspaceFolder = vscode.workspace.workspaceFolders[0].name;
-            outputChannel.appendLine("Generating the fix: ");
-            outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
-            outputChannel.appendLine(`Incidents: ${JSON.stringify(this.formatHintsToIncidents(issueByFile), null, 2)}`);
+            this.outputChannel.appendLine("Generating the fix: ");
+            this.outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
+            this.outputChannel.appendLine(`Incidents: ${JSON.stringify(this.formatHintsToIncidents(issueByFile), null, 2)}`);
             const content = await fs.readFile(this.issueFilePath, { encoding: 'utf8' });
             
             let incidents;
@@ -225,25 +226,25 @@ export class KaiFixDetails {
             
             
             const total_Reasoning = this.extractTotalReasoning(responseText);
-            outputChannel.appendLine(`---- Total Reasoning: ---- \n ${total_Reasoning}\n`);
+            this.outputChannel.appendLine(`---- Total Reasoning: ---- \n ${total_Reasoning}\n`);
             
 
             const used_prompts = this.extractUsedPrompts(responseText);
-            outputChannel.appendLine(`---- Used Prompts: ---- \n${used_prompts}\n`);
+            this.outputChannel.appendLine(`---- Used Prompts: ---- \n${used_prompts}\n`);
 
             const model_id = this.extractModelID(responseText);
-            outputChannel.appendLine(`---- Model Id: ---- \n${model_id}\n`);
+            this.outputChannel.appendLine(`---- Model Id: ---- \n${model_id}\n`);
 
             const additional_information = this.extractAdditionalInformation(responseText);
-            outputChannel.appendLine(`---- Additional Infomation: ---- \n${additional_information}\n`);
+            this.outputChannel.appendLine(`---- Additional Infomation: ---- \n${additional_information}\n`);
 
             const llm_results = this.extractLlmResults(responseText);
-            outputChannel.appendLine(`---- LLM Result: ---- \n${llm_results}\n`);
+            this.outputChannel.appendLine(`---- LLM Result: ---- \n${llm_results}\n`);
 
-            outputChannel.appendLine(`---- Updated File: ---- \n${updatedFile}`);
+            this.outputChannel.appendLine(`---- Updated File: ---- \n${updatedFile}`);
 
             const tampFileName = 'Kai-fix-All-'+this.getFileName(this.issueFilePath);
-            outputChannel.appendLine(`Tamp Filename: ${tampFileName}.`);
+            this.outputChannel.appendLine(`Temp Filename: ${tampFileName}.`);
             // Generate a unique temp file path
             this.tempFileUri = await this.writeToTempFile(updatedFile,tampFileName);
 
@@ -312,7 +313,7 @@ export class KaiFixDetails {
         
         const editor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === tempFileUri.toString());
         if (editor) {
-            await vscode.window.showTextDocument(editor.document, { preview: false, preserveFocus: true });
+            //await vscode.window.showTextDocument(editor.document, { preview: false, preserveFocus: true });
             await vscode.commands.executeCommand('workbench.action.files.save');
             return true; 
         }  
@@ -323,7 +324,7 @@ export class KaiFixDetails {
 
             const saved = await this.saveSpecificFile(tempFileUri);
                 if (saved) {
-                    vscode.window.showInformationMessage('Temp file saved.');
+                   // vscode.window.showInformationMessage('Temp file saved.');
                 } else {
                     vscode.window.showInformationMessage('Temp file was not open in an editor, or it was not dirty.');
                 }
@@ -331,9 +332,10 @@ export class KaiFixDetails {
             const tempFileContent = await vscode.workspace.fs.readFile(tempFileUri);
             
             await vscode.workspace.fs.writeFile(originalFileUri, tempFileContent);
-            
+            await this.closeEditor(this.openedDiffEditor);
+            this.resetState();
             await vscode.workspace.fs.delete(tempFileUri);
-            
+
             await this.closeEditor(this.openedDiffEditor);
             
             vscode.window.showInformationMessage('Changes applied successfully.');
@@ -509,6 +511,8 @@ export class KaiFixDetails {
         this.tempFileUri = undefined;
         this.issueFilePath = undefined;
         this.activeDiffUri = undefined;
+        this.outputChannel.dispose();
+
     }
 
     public async rejectChangesCommandHandler(): Promise<void> {
