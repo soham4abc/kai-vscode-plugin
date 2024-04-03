@@ -14,12 +14,12 @@ import { HintNode } from './hintNode';
 import { HintsNode } from './hintsNode';
 import { ClassificationsNode } from './classificationsNode';
 import { ClassificationNode } from './classificationNode';
-
 export class FileNode extends AbstractNode<FileItem> {
 
     private loading: boolean = false;
     private children = [];
     private issues = [];
+    private configforKai: RhamtConfiguration;
     file: string;
 
     constructor(
@@ -32,6 +32,7 @@ export class FileNode extends AbstractNode<FileItem> {
         super(config, modelService, onNodeCreateEmitter, dataProvider);
         this.file = file;
         this.root = root;
+        this.configforKai = config;
     }
 
     createItem(): FileItem {
@@ -52,6 +53,12 @@ export class FileNode extends AbstractNode<FileItem> {
         return path.basename(this.file);
     }
 
+    public getChildrenCount(): number {
+        return this.issues.length;
+    }
+   public getConfig(): RhamtConfiguration{
+        return this.configforKai;
+   }
     public getChildren(): Promise<ITreeNode[]> {
         if (this.loading) {
             return Promise.resolve([]);
@@ -62,7 +69,7 @@ export class FileNode extends AbstractNode<FileItem> {
     public hasMoreChildren(): boolean {
         return this.children.length > 0;
     }
-
+ 
     refresh(): void {
         this.children = [];
         const ext = path.extname(this.file);

@@ -139,8 +139,28 @@
             },
             {
                 "category": "MTA",
+                "command": "rhamt.acceptChanges",
+                "title": "Apply Changes",
+                "icon": "$(check)"
+            },
+            {
+                "category": "MTA",
+                "command": "rhamt.rejectChanges",
+                "title": "Reject Changes",
+                "icon": "$(x)"
+            },
+            {
+                "category": "MTA",
                 "command": "rhamt.applyQuickfixes",
                 "title": "Apply All Quickfixes"
+            }, 
+            {
+                "command": "rhamt.showCustomPanel",
+                "title": "Show Custom Panel"
+            },
+            {
+                "command": "rhamt.showSplitWebview",
+                "title": "Show Splits Webview"
             },
             {
                 "category": "MTA",
@@ -161,6 +181,11 @@
                 "category": "MTA",
                 "command": "rhamt.kai",
                 "title": "Generate Kai-Fix"
+            },
+            {
+                "category": "MTA",
+                "command": "rhamt.Kai-Fix-Files",
+                "title": "Kai-Fix All"
             }
         ],
         "configuration": [
@@ -182,6 +207,18 @@
                     "id": "rhamt-explorer",
                     "title": "MTA",
                     "icon": "resources/mta_mtr_icon.png"
+                },
+                {
+                    "id": "kaiFixDetailsSidebar",
+                    "title": "Kai Fix Details",
+                    "icon": "media/sidebar-icon.svg"
+                }
+            ],
+            "panel": [
+                {
+                    "id": "myCustomViewContainer",
+                    "title": "Kaifix by MTA",
+                    "icon": "resources/mta_mtr_icon.png"
                 }
             ]
         },
@@ -190,6 +227,25 @@
                 {
                     "id": "rhamtExplorerView",
                     "name": "Explorer"
+                },
+                {
+                    "type": "webview",
+                    "id": "myWebView",
+                    "name": "Kai Fix Actions",
+                    "visibility": "visible"
+                }
+
+            ],
+            "myCustomViewContainer": [
+                {
+                    "id": "myCustomView",
+                    "name": "Accept/Reject Changes"
+                }
+            ],
+            "kaiFixDetailsSidebar": [
+                {
+                    "id": "kaiFixButtons",
+                    "name": "Actions"
                 }
             ]
         },
@@ -262,6 +318,11 @@
                     "command": "rhamt.kai",
                     "when": "view == rhamtExplorerView && viewItem =~ /issue/i",
                     "group": "rhamt@3"
+                },
+                {
+                    "command": "rhamt.Kai-Fix-Files",
+                    "when": "view == rhamtExplorerView && viewItem =~ /file/i",
+                    "group": "rhamt@0"
                 },
                 {
                     "command": "rhamt.activate",

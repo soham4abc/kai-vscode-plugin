@@ -25,6 +25,7 @@ import { log } from 'console';
 let detailsView: IssueDetailsView;
 let modelService: ModelService;
 let stateLocation: string;
+//let configuration: RhamtConfiguration
 
 let extensionPath = "";
 
@@ -97,6 +98,9 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    const actionProvider = new ActionProvider();
+    vscode.window.registerTreeDataProvider('myCustomView', actionProvider);
+   
     const newRulesetDisposable = vscode.commands.registerCommand('rhamt.newRuleset', async () => {
         new NewRulesetWizard(modelService).open();
     }); 
@@ -125,6 +129,47 @@ export async function openFile(uri: vscode.Uri): Promise<void> {
     }
 }
 
+
 export function deactivate() {
     modelService.save();
 }
+
+  
+  class ActionItem extends vscode.TreeItem {
+    constructor(
+        public readonly label: string,
+        public readonly command?: vscode.Command
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+    }
+}
+
+class ActionProvider implements vscode.TreeDataProvider<ActionItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<ActionItem | undefined | void> = new vscode.EventEmitter<ActionItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<ActionItem | undefined | void> = this._onDidChangeTreeData.event;
+
+    getTreeItem(element: ActionItem): vscode.TreeItem {
+        return element;
+    }
+
+    getChildren(element?: ActionItem): Thenable<ActionItem[]> {
+        if (element) {
+            return Promise.resolve([]);
+        } else {
+            return Promise.resolve([
+                new ActionItem('Accept Changes', {
+                    command: 'rhamt.acceptChanges',
+                    title: '',
+                    arguments: []
+                }),
+                new ActionItem('Reject Changes', {
+                    command: 'rhamt.rejectChanges',
+                    title: '',
+                    arguments: []
+                })
+            ]);
+        }
+    }
+}
+
+

@@ -30,10 +30,8 @@ export class AnalysisResultsUtil {
 export class AnalyzerResults {
 
     reports: Map<string, string> = new Map<string, string>();
-
     config: RhamtConfiguration;
     jsonResults: any;
-    
     private _model: AnalyzerResults.Model;
      
    
@@ -44,7 +42,11 @@ export class AnalyzerResults {
     }
 
     init(): Promise<void> {
-        this._model = {hints: [], classifications: []};
+        this._model = {
+            hints: [],
+            classifications: [],
+            issueByFile: new Map<string, IHint[]>() 
+        };
         const rulesets = this.jsonResults[0]['rulesets'];
         const outputChannel1 = vscode.window.createOutputChannel("Analyzer Result");
             outputChannel1.show(true);
@@ -86,18 +88,27 @@ export class AnalyzerResults {
                                     origin: '',
                                     variables: incident.variables ? incident.variables: '',
                                 };
+                                
                                 outputChannel1.appendLine (`Hint: ${JSON.stringify(hint.variables, null, 2)}`);
                                 this.model.hints.push(hint);
-
+                                const existingHintsForFile = this._model.issueByFile.get(fileUri.fsPath);
+                                if (existingHintsForFile) {
+                                    existingHintsForFile.push(hint);
+                                } else {
+                                    this._model.issueByFile.set(fileUri.fsPath, [hint]);
+                                    outputChannel1.appendLine (`ISSUEfILE Making new entry # ${this._model.issueByFile.size}`);
+                                    outputChannel1.appendLine (`ISSUEfILE Making new entry for ${fileUri.fsPath}`);
+                                }
                             } catch (e) {
                                 console.log('error creating incident');
                                 console.log(e);
-                            }
+                            } 
                         });
                     }
                 });
             }
-        });       
+        }); 
+        outputChannel1.appendLine (`ISSUEBYFILE: ${JSON.stringify(this._model.issueByFile, null, 2)}`);      
         return Promise.resolve();
     }
 
@@ -124,6 +135,8 @@ export namespace AnalyzerResults {
     export interface Model {
         hints: IHint[];
         classifications: IClassification[];
+        issueByFile: Map<string, IHint[]>; 
+        
     }
 }
 
