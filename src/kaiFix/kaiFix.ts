@@ -328,15 +328,13 @@ export class KaiFixDetails {
                 } else {
                     vscode.window.showInformationMessage('Temp file was not open in an editor, or it was not dirty.');
                 }
-        
-            const tempFileContent = await vscode.workspace.fs.readFile(tempFileUri);
-            
-            await vscode.workspace.fs.writeFile(originalFileUri, tempFileContent);
-            await this.closeEditor(this.openedDiffEditor);
-            this.resetState();
-            await vscode.workspace.fs.delete(tempFileUri);
+                const tempFileContent = await vscode.workspace.fs.readFile(tempFileUri);
 
-            await this.closeEditor(this.openedDiffEditor);
+                await vscode.workspace.fs.writeFile(originalFileUri, tempFileContent);
+    
+                await vscode.workspace.fs.delete(tempFileUri);
+                
+                await this.closeEditor(this.openedDiffEditor);
             
             vscode.window.showInformationMessage('Changes applied successfully.');
         } catch (error) {
