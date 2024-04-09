@@ -70,7 +70,7 @@ export class KaiFixDetails {
                     name: hint.variables['name'] || '',
                     package: hint.variables['package'] || '',
                 },
-                file_name: hint.file - vscode.workspace.workspaceFolders[0].name,
+                file_name: hint.file.replace(vscode.workspace.workspaceFolders[0].name, ""),
                 file_contents: content,
                 line_number: hint.lineNumber,
                 analysis_message: hint.hint,
@@ -175,7 +175,7 @@ export class KaiFixDetails {
             }
 
             const postData = {
-                file_name: this.issueFilePath - vscode.workspace.workspaceFolders[0].name,
+                file_name: this.issueFilePath.replace(vscode.workspace.workspaceFolders[0].name, ""),
                 file_contents: content,
                 application_name: workspaceFolder,
                 incidents: incidents,
