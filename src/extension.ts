@@ -9,6 +9,7 @@ import { RhamtView } from './explorer/rhamtView';
 import { ModelService } from './model/modelService';
 import { RhamtModel, IssueContainer } from './server/analyzerModel';
 import { IssueDetailsView } from './issueDetails/issueDetailsView';
+import { KaiFixDetails } from './kaiFix/kaiFix';
 import { ReportView } from './report/reportView';
 import { ConfigurationEditorService } from './editor/configurationEditorService';
 import { HintItem } from './tree/hintItem';
@@ -24,6 +25,7 @@ import { log } from 'console';
 let detailsView: IssueDetailsView;
 let modelService: ModelService;
 let stateLocation: string;
+//let configuration: RhamtConfiguration
 
 let extensionPath = "";
 
@@ -38,7 +40,7 @@ export function getStateLocation(): string {
 export async function activate(context: vscode.ExtensionContext) {
 
     extensionPath = context.extensionPath;
-    
+
     await Utils.loadPackageInfo(context);
     stateLocation = path.join(os.homedir(), '.mta', 'tooling', 'vscode');
 
@@ -56,6 +58,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const markerService = new MarkerService(context, modelService);
     new RhamtView(context, modelService, configEditorService, markerService);
     new ReportView(context);
+    new KaiFixDetails(context, modelService);
     detailsView = new IssueDetailsView(context, locations, modelService);
     
     context.subscriptions.push(vscode.commands.registerCommand('rhamt.openDoc', async (data) => {
@@ -95,6 +98,9 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    // const actionProvider = new ActionProvider();
+    // vscode.window.registerTreeDataProvider('myCustomView', actionProvider);
+   
     const newRulesetDisposable = vscode.commands.registerCommand('rhamt.newRuleset', async () => {
         new NewRulesetWizard(modelService).open();
     }); 
@@ -123,6 +129,47 @@ export async function openFile(uri: vscode.Uri): Promise<void> {
     }
 }
 
+
 export function deactivate() {
     modelService.save();
 }
+
+  
+//   class ActionItem extends vscode.TreeItem {
+//     constructor(
+//         public readonly label: string,
+//         public readonly command?: vscode.Command
+//     ) {
+//         super(label, vscode.TreeItemCollapsibleState.None);
+//     }
+// }
+
+// class ActionProvider implements vscode.TreeDataProvider<ActionItem> {
+//     private _onDidChangeTreeData: vscode.EventEmitter<ActionItem | undefined | void> = new vscode.EventEmitter<ActionItem | undefined | void>();
+//     readonly onDidChangeTreeData: vscode.Event<ActionItem | undefined | void> = this._onDidChangeTreeData.event;
+
+//     getTreeItem(element: ActionItem): vscode.TreeItem {
+//         return element;
+//     }
+
+//     getChildren(element?: ActionItem): Thenable<ActionItem[]> {
+//         if (element) {
+//             return Promise.resolve([]);
+//         } else {
+//             return Promise.resolve([
+//                 new ActionItem('Accept Changes', {
+//                     command: 'rhamt.acceptChanges',
+//                     title: '',
+//                     arguments: []
+//                 }),
+//                 new ActionItem('Reject Changes', {
+//                     command: 'rhamt.rejectChanges',
+//                     title: '',
+//                     arguments: []
+//                 })
+//             ]);
+//         }
+//     }
+// }
+
+

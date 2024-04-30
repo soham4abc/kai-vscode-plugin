@@ -24,7 +24,7 @@ export class FileItem extends TreeItem {
     }
 
     public get contextValue(): string {
-        return undefined;
+        return 'file';
     }
 
     public get command(): Command {
