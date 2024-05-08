@@ -87,7 +87,7 @@ export class RhamtConfiguration {
     }
 
     sourceBase(): string {
-        return 'file:///opt/input/';
+        return 'file:///opt/input/source/';
     }
 
     getResultsLocation(): string {
