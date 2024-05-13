@@ -163,6 +163,12 @@ export class AnalyzerUtil {
             params.push('--overwrite');
         }
 
+        if (options['enable-default-rulesets']) {
+            params.push('--enable-default-rulesets=true');
+        } else{
+            params.push('--enable-default-rulesets=false');
+        }
+
         if (options['json-output']) {
             params.push('--json-output');
         }
