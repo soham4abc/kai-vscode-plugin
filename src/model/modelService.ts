@@ -55,6 +55,7 @@ export class ModelService {
         config.options['legacyReports'] = true;
         config.options['mode'] = 'source-only';
         config.options['overwrite'] = true;
+        config.options['enable-default-rulesets'] = true;
 
         return config;
     }

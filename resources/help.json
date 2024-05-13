@@ -200,6 +200,13 @@
         "required": false
       },
       {
+        "name": "enable-default-rulesets",
+        "description": "Allows the ability to ignore the default rulesets and add custom rulesets",
+        "type": "Boolean",
+        "ui-type": ["single"],
+        "required": false
+      },
+      {
         "name": "output",
         "description": "The location of the generated analysis results.",
         "type": "String",
