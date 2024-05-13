@@ -1,20 +1,20 @@
 {
-    "name": "mta-vscode-extension",
-    "displayName": "Migration Toolkit for Applications (MTA)",
-    "description": "Migration Toolkit for Applications (MTA)",
-    "version": "7.0.3",
+    "name": "kai-vscode-plugin",
+    "displayName": "Kai",
+    "description": "Konveyor AI",
+    "version": "0.0.1",
     "license": "epl-2.0",
     "publisher": "redhat",
     "author": "Red Hat",
-    "theme": "mta",
+    "theme": "kai",
     "preview": true,
-    "icon": "resources/mta_mtr_icon.png",
-    "homepage": "https://github.com/windup/rhamt-vscode-extension/blob/master/README.md",
+    "icon": "resources/konveyor-icon-color.png",
+    "homepage": "https://github.com/konveyor-ecosystem/kai-vscode-plugin/blob/master/README.md",
     "repository": {
         "type": "git",
-        "url": "https://github.com/windup/rhamt-vscode-extension"
+        "url": "https://github.com/konveyor-ecosystem/kai-vscode-plugin"
     },
-    "bugs": "https://github.com/windup/rhamt-vscode-extension/issues",
+    "bugs": "https://github.com/konveyor-ecosystem/kai-vscode-plugin/issues",
     "engines": {
         "vscode": "^1.59.1"
     },
@@ -28,7 +28,8 @@
         "RHAMT",
         "MTA",
         "JBoss",
-        "Analyze"
+        "Analyze",
+        "Kai"
     ],
     "activationEvents": [
         "onCommand:rhamt.createConfiguration",
@@ -204,8 +205,8 @@
             "activitybar": [
                 {
                     "id": "rhamt-explorer",
-                    "title": "MTA",
-                    "icon": "resources/mta_mtr_icon.png"
+                    "title": "KAI",
+                    "icon": "resources/konveyor-icon-color.png"
                 },
                 {
                     "id": "kaiFixDetailsSidebar",
@@ -217,7 +218,7 @@
                 {
                     "id": "myCustomViewContainer",
                     "title": "Kaifix by MTA",
-                    "icon": "resources/mta_mtr_icon.png"
+                    "icon": "resources/konveyor-icon-color.png"
                 }
             ]
         },
