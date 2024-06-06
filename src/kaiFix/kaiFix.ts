@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ExtensionContext, commands, window} from 'vscode';
-import { IHint, IssueContainer } from '../server/analyzerModel';
+import { IHint } from '../server/analyzerModel';
 import { rhamtEvents } from '../events';
 import { ModelService } from '../model/modelService';
 import { FileNode } from '../tree/fileNode';
@@ -43,105 +43,6 @@ export class KaiFixDetails {
          // Register command handlers
         context.subscriptions.push(commands.registerCommand('rhamt.acceptChanges', this.acceptChangesCommandHandler.bind(this)));
         context.subscriptions.push(commands.registerCommand('rhamt.rejectChanges', this.rejectChangesCommandHandler.bind(this)));
-
-        this.context.subscriptions.push(commands.registerCommand('rhamt.kai', async item => {
-            const issue = (item as IssueContainer).getIssue();
-            const hint = issue as IHint;
-            this.issueFilePath = issue.file;
-            const fs = require('fs').promises;
-            this.outputChannel = vscode.window.createOutputChannel("Kai-Fix Result");
-            this.outputChannel.show(true);
-            let workspaceFolder = vscode.workspace.workspaceFolders[0].name;
-            this.outputChannel.appendLine("Generating the fix: ");
-            this.outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
-            this.outputChannel.appendLine(`Ruleset Name: ${hint.rulesetName}.`);
-            this.outputChannel.appendLine(`Ruleset ID: ${hint.ruleId}.`);
-            this.outputChannel.appendLine(`Variables: ${JSON.stringify(hint.variables, null, 2)}`);
-            const content = await fs.readFile(this.issueFilePath, { encoding: 'utf8' });
-       
-                const postData = {
-                application_name: workspaceFolder,
-                violation_name: hint.ruleId,
-                ruleset_name: hint.rulesetName,
-                incident_snip: hint.sourceSnippet, 
-                incident_variables: {
-                    file: hint.variables['file'] || '',
-                    kind: hint.variables['kind'] || '',
-                    name: hint.variables['name'] || '',
-                    package: hint.variables['package'] || '',
-                },
-                file_name: hint.file.replace(vscode.workspace.workspaceFolders[0].uri.path + "/", ""),
-                file_contents: content,
-                line_number: hint.lineNumber,
-                analysis_message: hint.hint,
-            };
-
-            const url = 'http://0.0.0.0:8080/get_incident_solution';
-            const headers = {
-                'Content-Type': 'application/json',
-            };
-            const statusBarMessage = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-            let currentFrame = 0;
-            const frames = ['$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..'];
-        
-            // Start spinner
-            statusBarMessage.text = frames[0];
-            statusBarMessage.show();
-            const spinner = setInterval(() => {
-                statusBarMessage.text = frames[currentFrame];
-                currentFrame = (currentFrame + 1) % frames.length;
-            }, 500); // Change spinner frame every 500ms
-           
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(postData),
-                });
-                
-                clearInterval(spinner);
-                statusBarMessage.hide();
-
-                if (!response.ok) {
-                    vscode.window.showInformationMessage(` Error: ${response.toString}.`);
-                    vscode.window.showInformationMessage(` response: ${await response.text()}.`);
-                    throw new Error(`HTTP error! status: ${response.status}`);  
-                }
-                //vscode.window.showInformationMessage(`Yay! Kyma ${response.status}.`);
-                const responseText = await response.text(); // Get the raw response text
-                console.log(responseText);
-
-               
-                const formattedOutput = this.displayFormattedLLMOutput(responseText);
-                this.outputChannel.appendLine(formattedOutput);
-                const updatedFile = this.getUpdatedFileSection(formattedOutput);
-                // Create a virtual document URI using the custom scheme
-                //const encodedText = encodeURIComponent(responseText);
-               const virtualDocumentUri = vscode.Uri.parse(`${this.kaiScheme}:${this.issueFilePath}`);
-               
-            
-            const tampFileName = 'Kai-fix'+hint.lineNumber+hint.ruleId+this.getFileName(this.issueFilePath);
-            this.outputChannel.appendLine(`Temp Filename: ${tampFileName}.`);
-            // Generate a unique temp file path
-            this.tempFileUri = await this.writeToTempFile(updatedFile,tampFileName);
-
-            await vscode.commands.executeCommand('vscode.diff', virtualDocumentUri, this.tempFileUri, `Current ⟷ KaiFix`, {
-                preview: true,
-            }).then(() => {
-                this.myWebViewProvider.updateWebview(true);
-                this.openedDiffEditor = vscode.window.activeTextEditor;
-                this.activeDiffUri = virtualDocumentUri; 
-            });
-            
-            this.watchDiffEditorClose();
-           
-
-
-            } catch (error) {
-                console.error('Error making POST request:', error);
-                vscode.window.showErrorMessage(`Failed to perform the operation. ${error}`);
-            }
-        }));
 
         this.context.subscriptions.push(commands.registerCommand('rhamt.Kai-Fix-Files', async item => {
             const fileNode = item as FileNode;
@@ -191,7 +92,8 @@ export class KaiFixDetails {
             const statusBarMessage = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
             let currentFrame = 0;
             const frames = ['$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..'];
-        
+            fileNode.setInProgress(true);
+           
             // Start spinner
             statusBarMessage.text = frames[0];
             statusBarMessage.show();
@@ -209,6 +111,8 @@ export class KaiFixDetails {
                 
                 clearInterval(spinner);
                 statusBarMessage.hide();
+                fileNode.setInProgress(false);
+                fileNode.refresh();
 
                 if (!response.ok) {
                     vscode.window.showInformationMessage(` Error: ${response.toString}.`);
@@ -478,27 +382,27 @@ export class KaiFixDetails {
             this.context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(this.kaiScheme, provider));
     }
 
-    private displayFormattedLLMOutput(data: string) {
-        // Parse the JSON to get the llm_output field
-        const parsedData = JSON.parse(data);
-        const llmOutput = parsedData.llm_output;  
-        // Replace the markdown-like headings and newlines with a formatted version for plain text
-        const formattedOutput = llmOutput
-            .replace(/## /g, '== ') // Convert markdown headings to plain text
-            .replace(/\\n/g, '\n') // Convert escaped newlines to actual newlines
-            .replace(/^.*```.*$/gm, ''); // Remove entire lines containing code block ticks
-        // Create a new output channel or use an existing one
-        return formattedOutput;
-    }
+    // private displayFormattedLLMOutput(data: string) {
+    //     // Parse the JSON to get the llm_output field
+    //     const parsedData = JSON.parse(data);
+    //     const llmOutput = parsedData.llm_output;  
+    //     // Replace the markdown-like headings and newlines with a formatted version for plain text
+    //     const formattedOutput = llmOutput
+    //         .replace(/## /g, '== ') // Convert markdown headings to plain text
+    //         .replace(/\\n/g, '\n') // Convert escaped newlines to actual newlines
+    //         .replace(/^.*```.*$/gm, ''); // Remove entire lines containing code block ticks
+    //     // Create a new output channel or use an existing one
+    //     return formattedOutput;
+    // }
 
-    private getUpdatedFileSection(data: string): string {
-        // Match the "Updated File" section and capture everything after the title
-        const updatedFileRegex = /== Updated File\s*\n([\s\S]*?)(?=\n==|$)/;
-        const matches = data.match(updatedFileRegex);
+    // private getUpdatedFileSection(data: string): string {
+    //     // Match the "Updated File" section and capture everything after the title
+    //     const updatedFileRegex = /== Updated File\s*\n([\s\S]*?)(?=\n==|$)/;
+    //     const matches = data.match(updatedFileRegex);
         
-        // Return the captured group, which is the content after "Updated File", if found
-        return matches && matches[1].trim() || '';
-    }
+    //     // Return the captured group, which is the content after "Updated File", if found
+    //     return matches && matches[1].trim() || '';
+    // }
         
     private async closeEditor(editor: vscode.TextEditor): Promise<void> {
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');

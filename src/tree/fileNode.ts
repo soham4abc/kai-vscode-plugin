@@ -2,7 +2,7 @@
  *  Copyright (c) Red Hat. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { EventEmitter } from 'vscode';
+import { EventEmitter, ThemeIcon, window } from 'vscode';
 import { AbstractNode, ITreeNode } from './abstractNode';
 import { DataProvider } from './dataProvider';
 import { RhamtConfiguration } from '../server/analyzerModel';
@@ -14,13 +14,14 @@ import { HintNode } from './hintNode';
 import { HintsNode } from './hintsNode';
 import { ClassificationsNode } from './classificationsNode';
 import { ClassificationNode } from './classificationNode';
-export class FileNode extends AbstractNode<FileItem> {
 
+export class FileNode extends AbstractNode<FileItem> {
     private loading: boolean = false;
     private children = [];
     private issues = [];
     private configforKai: RhamtConfiguration;
     file: string;
+    public inProgress: boolean = false;
 
     constructor(
         config: RhamtConfiguration,
@@ -47,18 +48,19 @@ export class FileNode extends AbstractNode<FileItem> {
     }
 
     getLabel(): string {
-        console.log('File Node Label for: ' + this.file);        
+        console.log('File Node Label for: ' + this.file);
         console.log('File Node Label: ' + path.basename(this.file));
-        
         return path.basename(this.file);
     }
 
     public getChildrenCount(): number {
         return this.issues.length;
     }
-   public getConfig(): RhamtConfiguration{
+
+    public getConfig(): RhamtConfiguration{
         return this.configforKai;
-   }
+    }
+
     public getChildren(): Promise<ITreeNode[]> {
         if (this.loading) {
             return Promise.resolve([]);
@@ -69,17 +71,19 @@ export class FileNode extends AbstractNode<FileItem> {
     public hasMoreChildren(): boolean {
         return this.children.length > 0;
     }
- 
+
     refresh(): void {
         this.children = [];
         const ext = path.extname(this.file);
 
-        if (process.env.CHE_WORKSPACE_NAMESPACE) {
+        if (this.inProgress) {
+            window.showInformationMessage(`inProgress ${this.inProgress}`);
+            this.treeItem.iconPath = new ThemeIcon('sync~spin');
+        } else if (process.env.CHE_WORKSPACE_NAMESPACE) {
             this.treeItem.iconPath = ext === '.xml' ? 'fa fa-file-o medium-orange' :
                 ext === '.java' ? 'fa fa-file-o medium-orange' :
                 'fa fa-file';
-        }
-        else {
+        } else {
             const icon = ext === '.xml' ? 'file_type_xml.svg' :
                 ext === '.java' ? 'file_type_class.svg' :
                 'default_file.svg';
@@ -89,6 +93,7 @@ export class FileNode extends AbstractNode<FileItem> {
                 dark: path.join(...base, 'dark', icon)
             };
         }
+
         this.issues = this.root.getChildNodes(this);
         if (this.issues.find(issue => issue instanceof HintNode)) {
             this.children.push(new HintsNode(
@@ -109,5 +114,12 @@ export class FileNode extends AbstractNode<FileItem> {
                 this.root));
         }
         this.treeItem.refresh();
+    }
+
+  
+    public setInProgress(inProgress: boolean): void {
+        this.inProgress = inProgress;
+        this.refresh();  
+        this.dataProvider.refreshNode(this); 
     }
 }
