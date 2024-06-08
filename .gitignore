@@ -2,6 +2,7 @@ node_modules/
 .vscode-test
 .vscode
 .DS_Store
+*.vsix
 data/
 out/
 build/

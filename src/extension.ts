@@ -132,6 +132,7 @@ export async function openFile(uri: vscode.Uri): Promise<void> {
 
 export function deactivate() {
     modelService.save();
+    modelService.stopProviders();
 }
 
   

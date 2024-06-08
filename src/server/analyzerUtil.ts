@@ -8,7 +8,7 @@ import { ModelService } from '../model/modelService';
 import { rhamtChannel } from '../util/console';
 import * as fs from 'fs-extra';
 import { DataProvider } from '../tree/dataProvider';
-import { AnalyzerRunner } from './analyzerRunner';
+import { ProcessRunner } from './processRunner';
 import { AnalyzerProcessController } from './analyzerProcessController';
 import { RhamtConfiguration, WINDOW } from './analyzerModel';
 import * as path from 'path';
@@ -54,7 +54,8 @@ export class AnalyzerUtil {
                 let params = [];
                 try {
                     progress.report({ message: 'Verifying configuration' });
-                    params = await AnalyzerUtil.buildParams(config);
+                    params = await AnalyzerUtil.buildAnalyzerParams(
+                        path.join(dataProvider.context.extensionPath, "lib"), config);
                 }
                 catch (e) {
                     vscode.window.showErrorMessage(`Error: ${e}`);
@@ -81,8 +82,21 @@ export class AnalyzerUtil {
                         resolve(undefined);
                     }
                 };
+                // create log file for analysis
+                let outputStream: NodeJS.WritableStream;
                 try {
-                    processController = AnalyzerUtil.activeProcessController = await AnalyzerRunner.run(config.rhamtExecutable, params, START_TIMEOUT, log, onShutdown).then(cp => {
+                    outputStream = fs.createWriteStream(path.join(config.options['output'], 'analysis.log'));
+                } catch(e) {
+                    console.log("failed creating a log file for analysis");
+                }
+                try {
+                    processController = AnalyzerUtil.activeProcessController = await ProcessRunner.run(config.rhamtExecutable, params, START_TIMEOUT, {
+                        cwd: config.options['output'],
+                        env: Object.assign(
+                            {},
+                            process.env,
+                        )
+                    }, outputStream, log, onShutdown).then(cp => {
                         onStarted();
                         return new AnalyzerProcessController(config.rhamtExecutable, cp, onShutdown);
                     });
@@ -92,7 +106,7 @@ export class AnalyzerUtil {
                         return;
                     }
                 } catch (e) {
-                    console.log('Error executing cli');
+                    console.log('Error executing analysis');
                     console.log(e);
                     onShutdown();
                 }
@@ -124,11 +138,104 @@ export class AnalyzerUtil {
         vscode.commands.executeCommand('setContext', 'delete-enabled', enabled);
     }
 
-    private static buildParams(config: RhamtConfiguration): Promise<any[]> {
+    // private static buildParams(config: RhamtConfiguration): Promise<any[]> {
+    //     const params = [];
+    //     const options = config.options;
+    //     params.push('analyze');
+    //     params.push('--input');
+    //     const input = options['input'];
+    //     if (!input || input.length === 0) {
+    //         return Promise.reject('input is missing from configuration');
+    //     }
+    //     for (let anInput of input) {
+    //         if (!fs.existsSync(anInput)) {
+    //             return Promise.reject(`input does not exist: ${anInput}`);
+    //         }
+    //     }
+    //     input.forEach(entry => {
+    //         params.push(`${entry}`);
+    //     });
+    //     params.push('--output');
+    //     const output = config.options['output'];
+    //     if (!output || output === '') {
+    //         return Promise.reject('output is missing from configuration');
+    //     }
+    //     params.push(`${output}`);
+
+    //     params.push('--mode');
+    //     const mode = config.options['mode'];
+    //     if (!mode || mode === '') {
+    //         return Promise.reject('mode is missing from configuration');
+    //     }
+    //     params.push(`${mode}`);
+
+    //     if (options['skip-static-report']) {
+    //         params.push('--skip-static-report');
+    //     }
+
+    //     if (options['overwrite']) {
+    //         params.push('--overwrite');
+    //     }
+
+    //     if (options['enable-default-rulesets']) {
+    //         params.push('--enable-default-rulesets=true');
+    //     } else{
+    //         params.push('--enable-default-rulesets=false');
+    //     }
+
+    //     if (options['json-output']) {
+    //         params.push('--json-output');
+    //     }
+
+    //     if (options['analyze-known-libraries']) {
+    //         params.push('--analyze-known-libraries');
+    //     }
+
+    //     let target = options['target'];
+    //     if (!target) {
+    //         target = [];
+    //     }
+    //     if (target.length === 0) {
+    //         target.push('eap7');
+    //     }
+    //     target.forEach((i: any) => {
+    //         params.push('--target');
+    //         params.push(i);
+    //     });
+
+    //     // source
+    //     let source = options['source'];
+    //     if (!source) {
+    //         source = [];
+    //     }
+    //     source.forEach((i: any) => {
+    //         params.push('--source');
+    //         params.push(i);
+    //     });
+
+    //     // rules
+    //     let rules = options['rules'];
+    //     if (rules && rules.length > 0) {
+    //         rules.forEach(entry => {
+    //             params.push('--rules');
+    //             params.push(`${entry}`);
+    //         });
+    //     }
+
+    //     console.log("Options: ")
+    //     for (const key in config.options) {
+    //         if (config.options.hasOwnProperty(key)) {
+    //             console.log(`${key}: ${config.options[key]}`);
+    //         }
+    //     }
+    //     console.log("Params: " + params)
+    //     return Promise.resolve(params);
+    // }
+
+    private static buildAnalyzerParams(libPath: string, config: RhamtConfiguration): Promise<any[]> {
         const params = [];
         const options = config.options;
-        params.push('analyze');
-        params.push('--input');
+
         const input = options['input'];
         if (!input || input.length === 0) {
             return Promise.reject('input is missing from configuration');
@@ -138,66 +245,35 @@ export class AnalyzerUtil {
                 return Promise.reject(`input does not exist: ${anInput}`);
             }
         }
-        input.forEach(entry => {
-            params.push(`${entry}`);
-        });
-        params.push('--output');
+
         const output = config.options['output'];
         if (!output || output === '') {
             return Promise.reject('output is missing from configuration');
         }
-        params.push(`${output}`);
+        params.push('--output-file');
+        params.push(`${output}/output.yaml`);
+        params.push('--dep-output-file');
+        params.push(`${output}/dep-output.yaml`);
+        params.push(`--provider-settings`);
+        params.push(`${output}/provider_settings.json`);
 
-        params.push('--mode');
         const mode = config.options['mode'];
         if (!mode || mode === '') {
             return Promise.reject('mode is missing from configuration');
         }
+        params.push('--analysis-mode');
         params.push(`${mode}`);
 
-        if (options['skip-static-report']) {
-            params.push('--skip-static-report');
-        }
-
-        if (options['overwrite']) {
-            params.push('--overwrite');
-        }
-
         if (options['enable-default-rulesets']) {
-            params.push('--enable-default-rulesets=true');
-        } else{
-            params.push('--enable-default-rulesets=false');
+            params.push('--rules');
+            params.push(path.join(libPath, 'rulesets'))
         }
 
-        if (options['json-output']) {
-            params.push('--json-output');
+        if (!options['analyze-known-libraries']) {
+            params.push('--dep-label-selector="(!konveyor.io/dep-source=open-source)"');
         }
 
-        if (options['analyze-known-libraries']) {
-            params.push('--analyze-known-libraries');
-        }
-
-        let target = options['target'];
-        if (!target) {
-            target = [];
-        }
-        if (target.length === 0) {
-            target.push('eap7');
-        }
-        target.forEach((i: any) => {
-            params.push('--target');
-            params.push(i);
-        });
-
-        // source
-        let source = options['source'];
-        if (!source) {
-            source = [];
-        }
-        source.forEach((i: any) => {
-            params.push('--source');
-            params.push(i);
-        });
+        params.push(...this.buildLabelSelectorOption(options['source'] || [], options['target'] || []))
 
         // rules
         let rules = options['rules'];
@@ -321,4 +397,62 @@ export class AnalyzerUtil {
             }
         });
     }
+
+    private static buildLabelSelectorOption(sources: string[], targets: string[]): string[] {
+        if (!sources && !targets) {
+            return [];
+        }
+        const options = ["--label-selector"]
+        const sourceLabels: string[] = sources.map(item => `konveyor.io/source=${item}`)
+        const targetLabels: string[] = targets.map(item => `konveyor.io/target=${item}`)
+        const sourceExpr: string = sourceLabels.length > 0 ? `(${sourceLabels.join('||')})`: '';
+        const targetExpr: string = targetLabels.length > 0 ? `(${targetLabels.join('||')})`: '';
+        if (targetExpr !== '') {
+            if (sourceExpr !== '') {
+                return [...options, `${targetExpr} && ${sourceExpr}`];
+            } else {
+                return [...options, `${targetExpr} && konveyor.io/source`];
+            }
+        }
+        if (sourceExpr !== '') {
+            return [...options, sourceExpr];
+        }
+        return [];
+    }
+
+    public static generateStaticReport(libPath: string, config: RhamtConfiguration): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            const outputPath = config.options['output'];
+            const inputName = config.options['input'] ? path.basename(config.options['input'][0]) : config.name;
+            let analysisOutput = '';
+            let depOutput = '';
+            if (fs.existsSync(path.resolve(outputPath, 'output.yaml'))) {
+                analysisOutput = path.resolve(outputPath, 'output.yaml');
+            }
+            if (fs.existsSync(path.resolve(outputPath, 'dep-output.yaml'))) {
+                depOutput = path.resolve(outputPath, 'dep-output.yaml');
+            }
+            if (analysisOutput === '') {
+                reject(`analysis output not found at path ${path.resolve(outputPath, 'output.yaml')}`);
+            }
+            const options = ['--analysis-output-list', analysisOutput];
+            if (depOutput !== '') {
+                options.push('--deps-output-list');
+                options.push(depOutput);
+            }
+            options.push('--application-name-list');
+            options.push(inputName);
+            options.push('--output-path');
+            options.push(path.join(outputPath, 'static-report', 'output.js'));
+            console.log(options);
+            try {
+                fs.copySync(path.join(libPath, 'static-report'), path.join(outputPath, 'static-report'), {recursive: true});
+                await ProcessRunner.run(path.join(libPath, 'static-report-generator'), options, 60000, 
+                    {}, null, (msg: string) => console.log(msg), () => {})
+                resolve();
+            } catch (e) {
+                reject(`failed to generate static report - ${e}`);
+            }
+        });
+    } 
 }
