@@ -2,7 +2,7 @@
     "name": "kai-vscode-plugin",
     "displayName": "Kai",
     "description": "Konveyor AI",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "license": "epl-2.0",
     "publisher": "konveyor",
     "author": "Konveyor",
