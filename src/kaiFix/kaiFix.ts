@@ -7,6 +7,7 @@ import { IHint } from '../server/analyzerModel';
 import { rhamtEvents } from '../events';
 import { ModelService } from '../model/modelService';
 import { FileNode } from '../tree/fileNode';
+import { GlobalRequestsManager } from './globalRequestsManager';
 import * as vscode from 'vscode';
 import fetch from 'node-fetch';
 import * as os from 'os';
@@ -15,6 +16,7 @@ import * as path from 'path';
 export class KaiFixDetails { 
     onEditorClosed = new rhamtEvents.TypedEvent<void>();
     public context: ExtensionContext;
+    private globalRequestsManager: GlobalRequestsManager;
     private kaiScheme = 'kaifixtext';
     private tempFileUri: vscode.Uri | undefined;
     private openedDiffEditor: vscode.TextEditor | undefined;
@@ -28,12 +30,30 @@ export class KaiFixDetails {
     private outputChannel: vscode.OutputChannel;
 
 
-    constructor(context: ExtensionContext, modelService: ModelService) {
+    constructor(context: ExtensionContext, modelService: ModelService, globalRequestsManager: GlobalRequestsManager) {
         this.context = context;
+        this.globalRequestsManager = globalRequestsManager;
         this.myWebViewProvider = new MyWebViewProvider(this);
         this.registerContentProvider();
        // this.initStatusBarItems();
 
+       const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+
+       watcher.onDidChange(uri => {
+           console.log(`File changed: ${uri.fsPath}`);
+           vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
+
+           const fileMap = this.globalRequestsManager.getFileMap();
+            if (fileMap.get(uri.fsPath) === undefined) {
+                vscode.window.showInformationMessage(`rerunning the analyzer no etry found in map`);
+                // Run analyzer-lsp and add this request to the blobak map
+            } else {
+                vscode.window.showInformationMessage(`Process is alreay running, cancelling in progress activity and rerunning analyzer`);
+            }
+
+       });
+       context.subscriptions.push(watcher);
+       
       context.subscriptions.push(
           vscode.window.registerWebviewViewProvider(
             MyWebViewProvider.viewType, 
@@ -47,6 +67,7 @@ export class KaiFixDetails {
         this.context.subscriptions.push(commands.registerCommand('rhamt.Kai-Fix-Files', async item => {
             const fileNode = item as FileNode;
              this.issueFilePath = fileNode.file;
+             vscode.window.showInformationMessage(` FilePath of FILENODE: ${this.issueFilePath}`);
             const issueByFileMap = fileNode.getConfig()._results.model.issueByFile;
             //vscode.window.showInformationMessage(`TOTAL Issues: ${issueByFileMap.size}`);
             const issueByFile = issueByFileMap.get(fileNode.file);
@@ -83,25 +104,13 @@ export class KaiFixDetails {
                 include_llm_results: "True"
             };
 
-           
-
             const url = 'http://0.0.0.0:8080/get_incident_solutions_for_file';
             const headers = {
                 'Content-Type': 'application/json',
             };
-            const statusBarMessage = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
-            let currentFrame = 0;
-            const frames = ['$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..', '$(sync~spin) Generating Fix..'];
             fileNode.setInProgress(true);
-           
-            // Start spinner
-            statusBarMessage.text = frames[0];
-            statusBarMessage.show();
-            const spinner = setInterval(() => {
-                statusBarMessage.text = frames[currentFrame];
-                currentFrame = (currentFrame + 1) % frames.length;
-            }, 500); // Change spinner frame every 500ms
-           
+            this.globalRequestsManager.handleRequest(this.issueFilePath, "Kantra");
+      
             try {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -109,10 +118,10 @@ export class KaiFixDetails {
                     body: JSON.stringify(postData),
                 });
                 
-                clearInterval(spinner);
-                statusBarMessage.hide();
-                fileNode.setInProgress(false);
-                fileNode.refresh();
+            
+            fileNode.setInProgress(false);
+
+            fileNode.refresh();
 
                 if (!response.ok) {
                     vscode.window.showInformationMessage(` Error: ${response.toString}.`);
