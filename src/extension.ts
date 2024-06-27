@@ -45,9 +45,18 @@ export async function activate(context: vscode.ExtensionContext) {
     stateLocation = path.join(os.homedir(), '.mta', 'tooling', 'vscode');
 
     console.log(`windup state location is: ${stateLocation}`);
+    
 
     log(`App name: ${vscode.env.appName}`);
      
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+
+    watcher.onDidChange(uri => {
+        console.log(`File changed: ${uri.fsPath}`);
+        vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
+    });
+    context.subscriptions.push(watcher);
+
     const out = path.join(stateLocation);
 
     const locations = await endpoints.getEndpoints(context);

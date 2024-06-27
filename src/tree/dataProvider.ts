@@ -148,6 +148,14 @@ export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
         });
         this.refresh(undefined);
     }
+   
+    public refreshNode(node: ITreeNode): void {
+        this._onDidChangeTreeDataEmitter.fire(node);
+    }
+
+    public refreshAll(): void {
+        this._onDidChangeTreeDataEmitter.fire(undefined); 
+    }
 
     private async populateRootNodes(): Promise<any[]> {
 
