@@ -22,6 +22,7 @@ export class FileNode extends AbstractNode<FileItem> {
     private configforKai: RhamtConfiguration;
     file: string;
     public inProgress: boolean = false;
+    private static fileNodeMap: Map<string, FileNode> = new Map();
 
     constructor(
         config: RhamtConfiguration,
@@ -34,6 +35,7 @@ export class FileNode extends AbstractNode<FileItem> {
         this.file = file;
         this.root = root;
         this.configforKai = config;
+        FileNode.fileNodeMap.set(file, this); 
     }
 
     createItem(): FileItem {
@@ -121,5 +123,9 @@ export class FileNode extends AbstractNode<FileItem> {
         this.inProgress = inProgress;
         this.refresh();  
         this.dataProvider.refreshNode(this); 
+    }
+
+    public static getFileNodeByPath(filepath: string):FileNode | undefined{
+        return FileNode.fileNodeMap.get(filepath);
     }
 }
