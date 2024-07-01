@@ -8,6 +8,7 @@ import { rhamtEvents } from '../events';
 import { ModelService } from '../model/modelService';
 import { FileNode } from '../tree/fileNode';
 import { GlobalRequestsManager } from './globalRequestsManager';
+import { ProcessController } from './processController';
 import * as vscode from 'vscode';
 import fetch from 'node-fetch';
 import * as os from 'os';
@@ -21,8 +22,6 @@ export class KaiFixDetails {
     private tempFileUri: vscode.Uri | undefined;
     private openedDiffEditor: vscode.TextEditor | undefined;
     private issueFilePath: string | undefined;
-    // private acceptChangesStatusBarItem: vscode.StatusBarItem;
-    // private rejectChangesStatusBarItem: vscode.StatusBarItem;
     public static readonly viewType = 'myWebView';
     private activeDiffUri: vscode.Uri | undefined;
     private myWebviewView?: vscode.WebviewView;
@@ -30,36 +29,46 @@ export class KaiFixDetails {
     private outputChannel: vscode.OutputChannel;
 
 
-    constructor(context: ExtensionContext, modelService: ModelService, globalRequestsManager: GlobalRequestsManager) {
+    constructor(context: ExtensionContext, modelService: ModelService, globalRequestsManager: GlobalRequestsManager, processController: ProcessController) {
         this.context = context;
         this.globalRequestsManager = globalRequestsManager;
         this.myWebViewProvider = new MyWebViewProvider(this);
         this.registerContentProvider();
-       // this.initStatusBarItems();
+      
+        const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+        watcher.onDidChange(uri => {
+            console.log(`File changed: ${uri.fsPath}`);
+            vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
 
-       const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+            const fileMap = this.globalRequestsManager.getFileMap();
+                if (fileMap.get(uri.fsPath) === undefined) {
+                    vscode.window.showInformationMessage(`No entry exist in Map. so adding... `);
+                    globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
+                    // Run analyzer-lsp and add this request to the blobak map
+                } else {
+                    vscode.window.showInformationMessage(`Process is alreay running, cancelling in progress activity and rerunning analyzer GlobalManger size${globalRequestsManager.getFileMap().size}}`);
+                    globalRequestsManager.handleRequest(uri.fsPath, "Stop"); // assuming this will remove from globalMnager and process queue
+                    vscode.window.showInformationMessage(`after removing size is should be -1 ${globalRequestsManager.getFileMap().size}}`);
+                    globalRequestsManager.handleRequest(uri.fsPath, "Kantra"); 
+                }
 
-       watcher.onDidChange(uri => {
-           console.log(`File changed: ${uri.fsPath}`);
-           vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
-
-           const fileMap = this.globalRequestsManager.getFileMap();
-            if (fileMap.get(uri.fsPath) === undefined) {
-                vscode.window.showInformationMessage(`rerunning the analyzer no etry found in map`);
-                // Run analyzer-lsp and add this request to the blobak map
-            } else {
-                vscode.window.showInformationMessage(`Process is alreay running, cancelling in progress activity and rerunning analyzer`);
-            }
-
-       });
-       context.subscriptions.push(watcher);
+        });
+        context.subscriptions.push(watcher);
        
-      context.subscriptions.push(
-          vscode.window.registerWebviewViewProvider(
-            MyWebViewProvider.viewType, 
-            this.myWebViewProvider
-          )
-      );
+        this.context.subscriptions.push(commands.registerCommand('rhamt.Stop', async item => { 
+            const fileNode = item as FileNode;
+            const filePath = fileNode.file;
+            globalRequestsManager.handleRequest(filePath, "Stop");
+            vscode.window.showInformationMessage(`after removing size is should be -1 ${globalRequestsManager.getFileMap().size}}`);
+            fileNode.setInProgress(false);
+        }));
+
+        context.subscriptions.push(
+            vscode.window.registerWebviewViewProvider(
+                MyWebViewProvider.viewType, 
+                this.myWebViewProvider
+            )
+        );
          // Register command handlers
         context.subscriptions.push(commands.registerCommand('rhamt.acceptChanges', this.acceptChangesCommandHandler.bind(this)));
         context.subscriptions.push(commands.registerCommand('rhamt.rejectChanges', this.rejectChangesCommandHandler.bind(this)));

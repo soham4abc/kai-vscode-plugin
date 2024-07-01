@@ -186,6 +186,11 @@
                 "category": "MTA",
                 "command": "rhamt.Kai-Fix-Files",
                 "title": "Kai-Fix All"
+            },
+            {
+                "category": "MTA",
+                "command": "rhamt.Stop",
+                "title": "Stop Process"
             }
         ],
         "configuration": [
@@ -321,6 +326,11 @@
                 },
                 {
                     "command": "rhamt.Kai-Fix-Files",
+                    "when": "view == rhamtExplorerView && viewItem =~ /file/i",
+                    "group": "rhamt@0"
+                },
+                {
+                    "command": "rhamt.Stop",
                     "when": "view == rhamtExplorerView && viewItem =~ /file/i",
                     "group": "rhamt@0"
                 },
