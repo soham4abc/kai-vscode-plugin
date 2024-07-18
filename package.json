@@ -345,7 +345,25 @@
                     "group": "inline"
                 }
             ]
-        }
+        },
+        "colors": [
+            {
+                "id": "kaiFix.analyzing",
+                "description": "Color for analyzing icon",
+                "defaults": {
+                    "light": "#0037ff",
+                    "dark": "#0037ff"
+                }
+            },
+            {
+                "id": "kaiFix.fixing",
+                "description": "Color for fixing icon",
+                "defaults": {
+                    "light": "#4CAF50",
+                    "dark": "#4CAF50"
+                }
+            }
+        ]
     },
     "devDependencies": {
         "@types/chai": "^4.1.7",

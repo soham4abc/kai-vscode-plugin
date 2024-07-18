@@ -2,7 +2,7 @@
  *  Copyright (c) Red Hat. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { EventEmitter, ThemeIcon, window } from 'vscode';
+import { EventEmitter, ThemeColor, ThemeIcon, TreeItem, window } from 'vscode';
 import { AbstractNode, ITreeNode } from './abstractNode';
 import { DataProvider } from './dataProvider';
 import { RhamtConfiguration } from '../server/analyzerModel';
@@ -59,7 +59,7 @@ export class FileNode extends AbstractNode<FileItem> {
         return this.issues.length;
     }
 
-    public getConfig(): RhamtConfiguration{
+    public getConfig(): RhamtConfiguration {
         return this.configforKai;
     }
 
@@ -74,17 +74,36 @@ export class FileNode extends AbstractNode<FileItem> {
         return this.children.length > 0;
     }
 
-    refresh(): void {
+    refresh(node?: ITreeNode<TreeItem>, type?: string): void {
         this.children = [];
         const ext = path.extname(this.file);
 
-        if (this.inProgress) {
-            window.showInformationMessage(`inProgress ${this.inProgress}`);
-            this.treeItem.iconPath = new ThemeIcon('sync~spin');
+        if (this.inProgress && type) {
+            switch (type) {
+                case 'analyzing':
+                    this.treeItem.iconPath = new ThemeIcon('sync~spin', new ThemeColor('kaiFix.analyzing'));
+                    this.treeItem.label = `Analyzing: ${path.basename(this.file)}`;
+                    this.treeItem.tooltip = 'Analyzing Incidents';
+                    window.showInformationMessage(`FileNode is getting signal of Analyzing`);
+                    break;
+                case 'fixing':
+                    this.treeItem.iconPath = new ThemeIcon('loading~spin', new ThemeColor('kaiFix.fixing'));
+                    this.treeItem.label = `Fixing: ${path.basename(this.file)}`;
+                    this.treeItem.tooltip = 'Fixing Incidents';
+                    window.showInformationMessage(`FileNode is getting signal of Fixing`);
+                    break;
+                default:
+                    this.treeItem.iconPath = new ThemeIcon('sync~spin');
+                    this.treeItem.label = path.basename(this.file);
+                    this.treeItem.tooltip = '';
+                    break;
+            }
         } else if (process.env.CHE_WORKSPACE_NAMESPACE) {
             this.treeItem.iconPath = ext === '.xml' ? 'fa fa-file-o medium-orange' :
                 ext === '.java' ? 'fa fa-file-o medium-orange' :
                 'fa fa-file';
+            this.treeItem.label = path.basename(this.file);
+            this.treeItem.tooltip = '';
         } else {
             const icon = ext === '.xml' ? 'file_type_xml.svg' :
                 ext === '.java' ? 'file_type_class.svg' :
@@ -94,6 +113,8 @@ export class FileNode extends AbstractNode<FileItem> {
                 light: path.join(...base, 'light', icon),
                 dark: path.join(...base, 'dark', icon)
             };
+            this.treeItem.label = path.basename(this.file);
+            this.treeItem.tooltip = '';
         }
 
         this.issues = this.root.getChildNodes(this);
@@ -115,17 +136,15 @@ export class FileNode extends AbstractNode<FileItem> {
                 this.dataProvider,
                 this.root));
         }
-        this.treeItem.refresh();
+        this.dataProvider.refreshNode(this); // Ensure the tree view is refreshed
     }
 
-  
-    public setInProgress(inProgress: boolean): void {
+    public setInProgress(inProgress: boolean, type?: string): void {
         this.inProgress = inProgress;
-        this.refresh();  
-        this.dataProvider.refreshNode(this); 
+        this.refresh(undefined, type);
     }
 
-    public static getFileNodeByPath(filepath: string):FileNode | undefined{
+    public static getFileNodeByPath(filepath: string): FileNode | undefined {
         return FileNode.fileNodeMap.get(filepath);
     }
 }

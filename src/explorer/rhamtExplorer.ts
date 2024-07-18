@@ -8,24 +8,15 @@ import { ModelService } from '../model/modelService';
 import { ConfigurationEditorService } from '../editor/configurationEditorService';
 import { RhamtConfiguration } from '../server/analyzerModel';
 import { MarkerService } from '../source/markers';
-import { Grouping } from '../tree/configurationNode';
 import { AnalyzerUtil } from '../server/analyzerUtil';
 import { rhamtChannel } from '../util/console';
 
 export class RhamtExplorer {
-
-    private dataProvider: DataProvider;
-
-    private grouping: Grouping = {
-        groupByFile: true,
-        groupBySeverity: false
-    };
-
     constructor(private context: vscode.ExtensionContext,
         private modelService: ModelService,
         private configEditorService: ConfigurationEditorService,
-        private markerService: MarkerService) {
-        this.dataProvider = this.createDataProvider();
+        private markerService: MarkerService,
+        private dataProvider: DataProvider) {
         this.createViewer();
         this.createCommands();
     }
@@ -230,13 +221,4 @@ export class RhamtExplorer {
         return viewer;
     }
 
-    private createDataProvider(): DataProvider {
-        const provider: DataProvider = new DataProvider(
-            this.grouping,
-            this.modelService,
-            this.context,
-            this.markerService);
-        this.context.subscriptions.push(provider);
-        return provider;
-    }
 }

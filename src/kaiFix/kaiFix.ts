@@ -13,11 +13,13 @@ import * as vscode from 'vscode';
 import fetch from 'node-fetch';
 import * as os from 'os';
 import * as path from 'path';
+//import { ConfigurationNode } from '../tree/configurationNode';
 
 export class KaiFixDetails { 
     onEditorClosed = new rhamtEvents.TypedEvent<void>();
     public context: ExtensionContext;
     private globalRequestsManager: GlobalRequestsManager;
+    private processController: ProcessController;
     private kaiScheme = 'kaifixtext';
     private tempFileUri: vscode.Uri | undefined;
     private openedDiffEditor: vscode.TextEditor | undefined;
@@ -27,40 +29,54 @@ export class KaiFixDetails {
     private myWebviewView?: vscode.WebviewView;
     private myWebViewProvider: MyWebViewProvider;
     private outputChannel: vscode.OutputChannel;
+    private _fileNodes: Map<string, FileNode> = new Map();
 
-
-    constructor(context: ExtensionContext, modelService: ModelService, globalRequestsManager: GlobalRequestsManager, processController: ProcessController) {
+    constructor(context: ExtensionContext, modelService: ModelService, fileNodeMap ?:  Map<string, FileNode> ) {
         this.context = context;
-        this.globalRequestsManager = globalRequestsManager;
+        this.globalRequestsManager = new GlobalRequestsManager();
+        this.processController = new ProcessController(this.globalRequestsManager, 4, 4);
         this.myWebViewProvider = new MyWebViewProvider(this);
         this.registerContentProvider();
+        this.registerContentProvider();
+        this._fileNodes = fileNodeMap || new Map<string, FileNode>();
       
+        vscode.window.showInformationMessage(`this is process controller: ${this.processController.processQueue.length}`);
         const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
         watcher.onDidChange(uri => {
             console.log(`File changed: ${uri.fsPath}`);
             vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
-
+            if (this._fileNodes.size == 0 ){
+                vscode.window.showInformationMessage(`fileNodes Size =  ${this._fileNodes.size}`);
+            }
+            vscode.window.showInformationMessage(`fileNodes map size =  ${this._fileNodes.size}`);
+            const fileNode = this._fileNodes.get(uri.fsPath); 
             const fileMap = this.globalRequestsManager.getFileMap();
-                if (fileMap.get(uri.fsPath) === undefined) {
-                    vscode.window.showInformationMessage(`No entry exist in Map. so adding... `);
-                    globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
-                    // Run analyzer-lsp and add this request to the blobak map
-                } else {
-                    vscode.window.showInformationMessage(`Process is alreay running, cancelling in progress activity and rerunning analyzer GlobalManger size${globalRequestsManager.getFileMap().size}}`);
-                    globalRequestsManager.handleRequest(uri.fsPath, "Stop"); // assuming this will remove from globalMnager and process queue
-                    vscode.window.showInformationMessage(`after removing size is should be -1 ${globalRequestsManager.getFileMap().size}}`);
-                    globalRequestsManager.handleRequest(uri.fsPath, "Kantra"); 
+            if (fileMap.get(uri.fsPath) === undefined) {
+                vscode.window.showInformationMessage(`No entry exists in Map, so adding...+ ${fileNode.file}`);
+                this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
+                fileNode.setInProgress(true, "analyzing");
+                //Run analyzer-lsp and add this request to the global map
+            } else {
+                vscode.window.showInformationMessage(`Process is already running, cancelling in-progress activity and rerunning analyzer. Global Manager size: ${this.globalRequestsManager.getFileMap().size}`);
+                if (fileNode) {
+                    vscode.commands.executeCommand('rhamt.Stop', fileNode).then(() => {
+                        vscode.window.showInformationMessage(`After removing, size should be: ${this.globalRequestsManager.getFileMap().size}`);
+                        this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
+                    });
                 }
-
+            }
         });
         context.subscriptions.push(watcher);
        
-        this.context.subscriptions.push(commands.registerCommand('rhamt.Stop', async item => { 
-            const fileNode = item as FileNode;
-            const filePath = fileNode.file;
-            globalRequestsManager.handleRequest(filePath, "Stop");
-            vscode.window.showInformationMessage(`after removing size is should be -1 ${globalRequestsManager.getFileMap().size}}`);
-            fileNode.setInProgress(false);
+        this.context.subscriptions.push(vscode.commands.registerCommand('rhamt.Stop', async item => {
+            if (item instanceof FileNode) {
+                const filePath = item.file;
+                this.globalRequestsManager.handleRequest(filePath, "Stop");
+                vscode.window.showInformationMessage(`Process stopped. Size of global manager: ${this.globalRequestsManager.getFileMap().size}`);
+                item.setInProgress(false);
+            } else {
+                vscode.window.showErrorMessage('Invalid item passed to rhamt.Stop command');
+            }
         }));
 
         context.subscriptions.push(
@@ -117,7 +133,7 @@ export class KaiFixDetails {
             const headers = {
                 'Content-Type': 'application/json',
             };
-            fileNode.setInProgress(true);
+            fileNode.setInProgress(true, "fixing");
             this.globalRequestsManager.handleRequest(this.issueFilePath, "Kantra");
       
             try {
@@ -187,6 +203,10 @@ export class KaiFixDetails {
         }));
 
 
+    }
+    public updateFileNodes(fileNodeMap: Map<string, FileNode>): void {
+        this._fileNodes = fileNodeMap;
+        //vscode.window.showInformationMessage(`Updated list of filesNodes in KAIFIX: ${this._fileNodes.size}`);
     }
     public setWebviewView(webviewView: vscode.WebviewView): void {
         this.myWebviewView = webviewView;
