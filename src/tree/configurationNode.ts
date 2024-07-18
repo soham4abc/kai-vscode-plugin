@@ -19,13 +19,14 @@ import { SortUtil } from './sortUtil';
 import { ResultsNode } from './resultsNode';
 import { MarkerService } from '../source/markers';
 
+
 export interface Grouping {
     groupByFile: boolean;
     groupBySeverity: boolean;
 }
 
 export class ConfigurationNode extends AbstractNode<ConfigurationItem> implements ReportHolder {
-
+    public fileNodeMap = new Map<string, FileNode>(); 
     private grouping: Grouping;
     private classifications: IClassification[] = [];
     private hints: IHint[] = [];
@@ -47,7 +48,9 @@ export class ConfigurationNode extends AbstractNode<ConfigurationItem> implement
         this.grouping = grouping;
         this.listen();
     }
-
+    public getFileNodeMap(): Map<string, FileNode> {
+        return this.fileNodeMap;
+    }
     createItem(): ConfigurationItem {
         console.log('ConfigurationNode :: createItem()');
         this.treeItem = new ConfigurationItem(this.config);
@@ -80,7 +83,7 @@ export class ConfigurationNode extends AbstractNode<ConfigurationItem> implement
         });
     }
 
-    public loadResults(): void {
+    public async loadResults(): Promise<void> {
         if (this.config.results) {
             this.computeIssues();
             this.results = [
@@ -101,6 +104,7 @@ export class ConfigurationNode extends AbstractNode<ConfigurationItem> implement
         this.issueNodes.clear();
         this.resourceNodes.clear();
         this.childNodes.clear();
+        this.fileNodeMap.clear(); 
     }
 
     private computeIssues(): void {
@@ -147,14 +151,15 @@ export class ConfigurationNode extends AbstractNode<ConfigurationItem> implement
         
         
         if (!this.resourceNodes.has(file)) {
-            this.resourceNodes.set(file, new FileNode(
+            const fileNode = new FileNode(
                 this.config,
                 file,
                 this.modelService,
                 this.onNodeCreateEmitter,
                 this.dataProvider,
-                this));
-
+                this);
+            this.resourceNodes.set(file, fileNode);
+            this.fileNodeMap.set(file, fileNode);
             const getParent = location => path.resolve(location, '..');
             let parent = getParent(file);
 

@@ -9,9 +9,6 @@ import { RhamtView } from './explorer/rhamtView';
 import { ModelService } from './model/modelService';
 import { RhamtModel, IssueContainer } from './server/analyzerModel';
 import { IssueDetailsView } from './issueDetails/issueDetailsView';
-import { KaiFixDetails } from './kaiFix/kaiFix';
-import { GlobalRequestsManager }  from './kaiFix/globalRequestsManager';
-import { ProcessController }  from './kaiFix/processController';
 import { ReportView } from './report/reportView';
 import { ConfigurationEditorService } from './editor/configurationEditorService';
 import { HintItem } from './tree/hintItem';
@@ -20,9 +17,9 @@ import { NewRulesetWizard } from './wizard/newRulesetWizard';
 import * as endpoints from './server/endpoints';
 import { ConfigurationEditorSerializer } from './editor/configurationEditorSerializer';
 import * as os from 'os';
-import { MarkerService } from './source/markers';
 import { FileItem } from './tree/fileItem';
 import { log } from 'console';
+
 
 let detailsView: IssueDetailsView;
 let modelService: ModelService;
@@ -52,15 +49,11 @@ export async function activate(context: vscode.ExtensionContext) {
     log(`App name: ${vscode.env.appName}`);
     const out = path.join(stateLocation);
     const locations = await endpoints.getEndpoints(context);
-    modelService = new ModelService(new RhamtModel(), out, locations);
+    modelService = new ModelService(new RhamtModel(), out, locations, context);
     const configEditorService = new ConfigurationEditorService(context, modelService);
     await modelService.readCliMeta();
-    const globalRequestsManager = new GlobalRequestsManager();
-    const processController = new ProcessController(globalRequestsManager, 4, 4);
-    const markerService = new MarkerService(context, modelService);
-    new RhamtView(context, modelService, configEditorService, markerService);
+    new RhamtView(context, modelService, configEditorService, modelService.markerService, modelService.dataProvider);
     new ReportView(context);
-    new KaiFixDetails(context, modelService, globalRequestsManager, processController);
     detailsView = new IssueDetailsView(context, locations, modelService);
     
     context.subscriptions.push(vscode.commands.registerCommand('rhamt.openDoc', async (data) => {
