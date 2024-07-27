@@ -9,7 +9,9 @@ import { ConfigurationEditorService } from '../editor/configurationEditorService
 import { RhamtConfiguration } from '../server/analyzerModel';
 import { MarkerService } from '../source/markers';
 import { AnalyzerUtil } from '../server/analyzerUtil';
-import { rhamtChannel } from '../util/console';
+import { ProviderName, LocalProviderRunner, providerBinaryPath, writeProviderSettingsFile, getProviderConfigs } from '../server/providerUtil';
+import { providerChannel, rhamtChannel } from '../util/console';
+import * as path from "path";
 
 export class RhamtExplorer {
     constructor(private context: vscode.ExtensionContext,
@@ -132,6 +134,28 @@ export class RhamtExplorer {
                 vscode.window.showErrorMessage(`Error unactivating configuration ${e}`);
             }
         }));
+        this.dataProvider.context.subscriptions.push(vscode.commands.registerCommand('rhamt.runProviders', async (item) => {
+            if (!item) {
+                const configs = this.modelService.model.configurations.map(config => config.name);
+                const choice = await vscode.window.showQuickPick(configs);
+                if (choice) {
+                    const config = this.modelService.getConfigurationWithName(choice);
+                    item = {config};
+                }
+                else {
+                    return;
+                }                
+            }
+            const libPath = path.join(this.dataProvider.context.extensionPath, "lib")
+            try {
+                await LocalProviderRunner.getInstance().run({
+                    binaryPath: providerBinaryPath(ProviderName.Java, libPath),
+                    name: ProviderName.Java,
+                }, providerChannel);
+            } catch (e) {
+                console.log(`Error setting up provider ${ProviderName.Java}`);
+            }
+        }));
         this.dataProvider.context.subscriptions.push(vscode.commands.registerCommand('rhamt.runConfiguration', async (item) => {
             if (!item) {
                 const configs = this.modelService.model.configurations.map(config => config.name);
@@ -145,8 +169,12 @@ export class RhamtExplorer {
                 }                
             }
             const config = item.config as RhamtConfiguration;
+            const libPath = path.join(this.dataProvider.context.extensionPath, 'lib');
             try {
                 AnalyzerUtil.updateRunEnablement(false, this.dataProvider, config);
+                const providers = LocalProviderRunner.getInstance().providers();
+                await writeProviderSettingsFile(config.options['output'], 
+                    getProviderConfigs(providers, libPath, config.options['input']));
                 await AnalyzerUtil.analyze(
                     this.dataProvider,
                     config,
@@ -157,28 +185,10 @@ export class RhamtExplorer {
                         this.refreshConfigurations();
                     },
                     () => {});
-                    if (config.cancelled) {
-                        rhamtChannel.print('\nAnalysis canceled');
-                        return;
-                    };
-                    await AnalyzerUtil.loadAnalyzerResults(config);
-                        AnalyzerUtil.updateRunEnablement(true, this.dataProvider, config);
-                        const configNode = this.dataProvider.getConfigurationNode(config);
-                        configNode.loadResults();
-                        this.refreshConfigurations();
-                        this.dataProvider.reveal(configNode, true);
-                        this.markerService.refreshOpenEditors();
-                        this.saveModel();
-                        rhamtChannel.print('\nAnalysis completed successfully');
-                        vscode.window.showInformationMessage('Analysis complete', 'Open Report').then(result => {
-                            if (result === 'Open Report') {
-                                vscode.commands.executeCommand('rhamt.openReportExternal', {
-                                    config,
-                                    getReport: () => config.getReport()
-                                });
-                            }
-                        });
-
+                if (config.cancelled) {
+                    rhamtChannel.print('\nAnalysis canceled');
+                    return;
+                };
             } catch (e) {
                 console.log(e);
                 rhamtChannel.print('\nAnalysis failed');
@@ -188,6 +198,35 @@ export class RhamtExplorer {
                 AnalyzerUtil.updateRunEnablement(true, this.dataProvider, config);
                 this.refreshConfigurations();
             }
+            try {
+                await AnalyzerUtil.generateStaticReport(libPath, config);
+                await AnalyzerUtil.loadAnalyzerResults(config);
+                AnalyzerUtil.updateRunEnablement(true, this.dataProvider, config);
+                const configNode = this.dataProvider.getConfigurationNode(config);
+                configNode.loadResults();
+                this.refreshConfigurations();
+                this.dataProvider.reveal(configNode, true);
+                this.markerService.refreshOpenEditors();
+                this.saveModel();
+                rhamtChannel.print('\nAnalysis completed successfully');
+                vscode.window.showInformationMessage('Analysis complete', 'Open Report').then(result => {
+                    if (result === 'Open Report') {
+                        vscode.commands.executeCommand('rhamt.openReportExternal', {
+                            config,
+                            getReport: () => config.getReport()
+                        });
+                    }
+                });
+            } catch (e) {
+                console.log(e);
+                rhamtChannel.print('\nStatic report generation failed');
+                if (!e.notified) {
+                    vscode.window.showErrorMessage(`Error generating static report - ${e}`);
+                }
+                AnalyzerUtil.updateRunEnablement(true, this.dataProvider, config);
+                this.refreshConfigurations();
+            }
+
         }));
         AnalyzerUtil.updateRunEnablement(true, this.dataProvider, null);
     }

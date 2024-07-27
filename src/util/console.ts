@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 
-class RhamtChannelImpl {
+export interface RhamtChannel {
+    print(text: string)
+    clear()
+}
+
+class RhamtChannelImpl implements RhamtChannel {
     private readonly channel: vscode.OutputChannel = vscode.window.createOutputChannel('MTA');
     print(text: string) {
         this.channel.append(text);
@@ -16,3 +21,16 @@ class RhamtChannelImpl {
 }
 
 export const rhamtChannel = new RhamtChannelImpl();
+
+class ProviderChannelImpl implements RhamtChannel {
+    private readonly channel: vscode.OutputChannel = vscode.window.createOutputChannel('Provider');
+    print(text: string) {
+        this.channel.append(text);
+        this.channel.show();
+    }
+    clear() {
+        this.channel.clear();
+    }
+}
+
+export const providerChannel = new ProviderChannelImpl();

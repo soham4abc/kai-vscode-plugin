@@ -78,6 +78,11 @@
             },
             {
                 "category": "MTA",
+                "command": "rhamt.runProviders",
+                "title": "Run Provider"
+            },
+            {
+                "category": "MTA",
                 "command": "rhamt.deleteConfiguration",
                 "title": "Delete",
                 "icon": "$(trash)"
@@ -239,7 +244,6 @@
                     "name": "Kai Fix Actions",
                     "visibility": "visible"
                 }
-
             ],
             "myCustomViewContainer": [
                 {
@@ -396,6 +400,7 @@
         "marked": "^12.0.1",
         "mime-types": "^2.1.26",
         "mkdirp": "^0.5.1",
+        "net": "^1.0.2",
         "node-fetch": "^2.7.0",
         "node-stream-zip": "^1.8.0",
         "open": "^7.0.3",
