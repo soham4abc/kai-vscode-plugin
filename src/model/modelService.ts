@@ -11,17 +11,44 @@ import * as vscode from 'vscode';
 import { AnalyzerUtil } from '../server/analyzerUtil';
 import { rhamtChannel } from '../util/console';
 import { LocalProviderRunner } from '../server/providerUtil';
+import { MarkerService } from '../source/markers';
+import { DataProvider } from '../tree/dataProvider';
+import { Grouping } from '../tree/configurationNode';
+import { KaiFixDetails } from '../kaiFix/kaiFix';
+
 
 export class ModelService {
 
     public loaded: boolean = false;
     private rulesets: string[] = [];
     elementData: any;
+    private _markerService: MarkerService;
+    private _dataProvider: DataProvider;
+    private kaiFix: KaiFixDetails
+    
+
+    private grouping: Grouping = {
+        groupByFile: true,
+        groupBySeverity: false
+    };
 
     constructor(
         public model: RhamtModel,
         public outDir: string,
-        public endpoints: Endpoints) {
+        public endpoints: Endpoints,
+        private context: vscode.ExtensionContext, 
+    ) {
+         this._markerService = new MarkerService(this.context, this);
+         this.kaiFix = new KaiFixDetails(this.context, this);
+         this._dataProvider = this.createDataProvider();
+    }
+
+    public get dataProvider(): DataProvider {
+        return this._dataProvider;
+    }
+
+    public get markerService(): MarkerService {
+        return this._markerService;
     }
 
     public addConfiguration(config: RhamtConfiguration): void  {
@@ -418,5 +445,17 @@ export class ModelService {
         const config = this.model.configurations.find(config => config.id === configId);
         if (!config || !config.results) return undefined;
         return config.results.model.hints.find(hint => hint.id === hintId);
+    }
+
+
+    private createDataProvider(): DataProvider {
+        const provider: DataProvider = new DataProvider(
+            this.grouping,
+            this,
+            this.context,
+            this.markerService,
+            this.kaiFix);
+        this.context.subscriptions.push(provider);
+        return provider;
     }
 }

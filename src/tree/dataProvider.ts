@@ -12,6 +12,8 @@ import { ResultsNode } from './resultsNode';
 import { RhamtConfiguration } from '../server/analyzerModel';
 import { MarkerService } from '../source/markers';
 import { getOpenEditors } from '../editor/configurationView';
+import { KaiFixDetails } from '../kaiFix/kaiFix';
+import { FileNode } from './fileNode';
 
 export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
 
@@ -19,11 +21,10 @@ export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
     _onNodeCreateEmitter: EventEmitter<ITreeNode> = new EventEmitter<ITreeNode>();
     private _disposables: Disposable[] = [];
     private children: ConfigurationNode[] = [];
-
     private view: TreeView<any>;
 
     constructor(private grouping: Grouping, private modelService: ModelService, public context: ExtensionContext,
-        private markerService: MarkerService) {
+        private markerService: MarkerService, private kaiFix: KaiFixDetails) {
         this._disposables.push(commands.registerCommand('rhamt.modelReload', async () => {
             try {
                 await modelService.reload();
@@ -148,11 +149,20 @@ export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
         });
         this.refresh(undefined);
     }
+   
+    public refreshNode(node: ITreeNode): void {
+        this._onDidChangeTreeDataEmitter.fire(node);
+    }
 
-    private async populateRootNodes(): Promise<any[]> {
+    public refreshAll(): void {
+        this._onDidChangeTreeDataEmitter.fire(undefined); 
+    }
 
+   
+    public async populateRootNodes(): Promise<any[]> {
+       // window.showInformationMessage(`-------populateRootNodes------------`);
         let nodes: any[];
-
+    
         try {
             if (this.modelService.loaded) {
                 for (let i = this.children.length; i--;) {
@@ -175,13 +185,35 @@ export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
                     }
                     return node;
                 });
-            }
-            else {
-                const item = new TreeItem(localize('loadingNode', 'Loading...'));
+    
+                window.showInformationMessage(`Configurations: ${this.modelService.model.configurations.length}`);
+    
+                // Wait for configurations to load their results
+                await Promise.all(nodes.map(async node => {
+                    if (node instanceof ConfigurationNode) {
+                        await node.loadResults();
+                    }
+                }));
+    
+                const allfileNodeMap = new Map<string, FileNode>();
+                for (const config of this.modelService.model.configurations) {
+                    const configNode = this.getConfigurationNode(config);
+                    if (configNode) {
+                       //window.showInformationMessage(`For each configNode map size: ${configNode.getFileNodeMap().size}`);
+                        for (const [key, value] of configNode.getFileNodeMap()) {
+                            allfileNodeMap.set(key, value);
+                        }
+                    }
+                }
+                this.kaiFix.updateFileNodes(allfileNodeMap);
+                window.showInformationMessage(`Total entries in combined fileNodeMap: ${allfileNodeMap.size}`);
+    
+            } else {
+                const item = new TreeItem('Loading...');
                 const base = [__dirname, '..', '..', '..', 'resources'];
                 item.iconPath = {
                     light: path.join(...base, 'light', 'Loading.svg'),
-                    dark:  path.join(...base, 'dark', 'Loading.svg')
+                    dark: path.join(...base, 'dark', 'Loading.svg')
                 };
                 nodes = [item];
                 (async () => setTimeout(async () => {
@@ -195,15 +227,16 @@ export class DataProvider implements TreeDataProvider<ITreeNode>, Disposable {
                     catch (e) {
                         console.log('error while loading model service.');
                         console.log(e);
-                        window.showErrorMessage(`Error reloading explorer data.`)
+                        window.showErrorMessage(`Error reloading explorer data.`);
                     }
                 }, 500))();
             }
-        }
-        catch (e) {
+        } catch (e) {
             console.log('dataProvider.populateRootNodes :: Error reloading explorer data.');
-            console.log(e);            
+            console.log(e);
         }
         return nodes;
     }
+    
+    
 }

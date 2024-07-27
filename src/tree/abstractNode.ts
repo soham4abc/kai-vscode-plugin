@@ -30,7 +30,7 @@ export abstract class AbstractNode<T extends vscode.TreeItem = vscode.TreeItem> 
         this.dataProvider = dataProvider;
     }
 
-    protected refresh(node?: ITreeNode): void {
+    protected refresh(node?: ITreeNode, type?: string ): void {
         this.dataProvider.refresh(node);
     }
 

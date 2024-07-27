@@ -12,9 +12,10 @@ suite('RHAMT / Model', () => {
 
     let modelService: ModelService;
     const outDir = __dirname;
+    let context: vscode.ExtensionContext;
 
     setup(() => {
-        modelService = new ModelService(new RhamtModel(), outDir, getReportEndpoints(__dirname));
+        modelService = new ModelService(new RhamtModel(), outDir, getReportEndpoints(__dirname), context);
     });
 
     test('configuration name', () => {

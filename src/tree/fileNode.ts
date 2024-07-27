@@ -2,7 +2,7 @@
  *  Copyright (c) Red Hat. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { EventEmitter } from 'vscode';
+import { EventEmitter, ThemeColor, ThemeIcon, TreeItem, window } from 'vscode';
 import { AbstractNode, ITreeNode } from './abstractNode';
 import { DataProvider } from './dataProvider';
 import { RhamtConfiguration } from '../server/analyzerModel';
@@ -14,13 +14,15 @@ import { HintNode } from './hintNode';
 import { HintsNode } from './hintsNode';
 import { ClassificationsNode } from './classificationsNode';
 import { ClassificationNode } from './classificationNode';
-export class FileNode extends AbstractNode<FileItem> {
 
+export class FileNode extends AbstractNode<FileItem> {
     private loading: boolean = false;
     private children = [];
     private issues = [];
     private configforKai: RhamtConfiguration;
     file: string;
+    public inProgress: boolean = false;
+    private static fileNodeMap: Map<string, FileNode> = new Map();
 
     constructor(
         config: RhamtConfiguration,
@@ -33,6 +35,7 @@ export class FileNode extends AbstractNode<FileItem> {
         this.file = file;
         this.root = root;
         this.configforKai = config;
+        FileNode.fileNodeMap.set(file, this); 
     }
 
     createItem(): FileItem {
@@ -47,18 +50,19 @@ export class FileNode extends AbstractNode<FileItem> {
     }
 
     getLabel(): string {
-        console.log('File Node Label for: ' + this.file);        
+        console.log('File Node Label for: ' + this.file);
         console.log('File Node Label: ' + path.basename(this.file));
-        
         return path.basename(this.file);
     }
 
     public getChildrenCount(): number {
         return this.issues.length;
     }
-   public getConfig(): RhamtConfiguration{
+
+    public getConfig(): RhamtConfiguration {
         return this.configforKai;
-   }
+    }
+
     public getChildren(): Promise<ITreeNode[]> {
         if (this.loading) {
             return Promise.resolve([]);
@@ -69,17 +73,38 @@ export class FileNode extends AbstractNode<FileItem> {
     public hasMoreChildren(): boolean {
         return this.children.length > 0;
     }
- 
-    refresh(): void {
+
+    refresh(node?: ITreeNode<TreeItem>, type?: string): void {
         this.children = [];
         const ext = path.extname(this.file);
 
-        if (process.env.CHE_WORKSPACE_NAMESPACE) {
+        if (this.inProgress && type) {
+            switch (type) {
+                case 'analyzing':
+                    this.treeItem.iconPath = new ThemeIcon('sync~spin', new ThemeColor('kaiFix.analyzing'));
+                    this.treeItem.label = `Analyzing: ${path.basename(this.file)}`;
+                    this.treeItem.tooltip = 'Analyzing Incidents';
+                    window.showInformationMessage(`FileNode is getting signal of Analyzing`);
+                    break;
+                case 'fixing':
+                    this.treeItem.iconPath = new ThemeIcon('loading~spin', new ThemeColor('kaiFix.fixing'));
+                    this.treeItem.label = `Fixing: ${path.basename(this.file)}`;
+                    this.treeItem.tooltip = 'Fixing Incidents';
+                    window.showInformationMessage(`FileNode is getting signal of Fixing`);
+                    break;
+                default:
+                    this.treeItem.iconPath = new ThemeIcon('sync~spin');
+                    this.treeItem.label = path.basename(this.file);
+                    this.treeItem.tooltip = '';
+                    break;
+            }
+        } else if (process.env.CHE_WORKSPACE_NAMESPACE) {
             this.treeItem.iconPath = ext === '.xml' ? 'fa fa-file-o medium-orange' :
                 ext === '.java' ? 'fa fa-file-o medium-orange' :
                 'fa fa-file';
-        }
-        else {
+            this.treeItem.label = path.basename(this.file);
+            this.treeItem.tooltip = '';
+        } else {
             const icon = ext === '.xml' ? 'file_type_xml.svg' :
                 ext === '.java' ? 'file_type_class.svg' :
                 'default_file.svg';
@@ -88,7 +113,10 @@ export class FileNode extends AbstractNode<FileItem> {
                 light: path.join(...base, 'light', icon),
                 dark: path.join(...base, 'dark', icon)
             };
+            this.treeItem.label = path.basename(this.file);
+            this.treeItem.tooltip = '';
         }
+
         this.issues = this.root.getChildNodes(this);
         if (this.issues.find(issue => issue instanceof HintNode)) {
             this.children.push(new HintsNode(
@@ -108,6 +136,15 @@ export class FileNode extends AbstractNode<FileItem> {
                 this.dataProvider,
                 this.root));
         }
-        this.treeItem.refresh();
+        this.dataProvider.refreshNode(this); // Ensure the tree view is refreshed
+    }
+
+    public setInProgress(inProgress: boolean, type?: string): void {
+        this.inProgress = inProgress;
+        this.refresh(undefined, type);
+    }
+
+    public static getFileNodeByPath(filepath: string): FileNode | undefined {
+        return FileNode.fileNodeMap.get(filepath);
     }
 }
