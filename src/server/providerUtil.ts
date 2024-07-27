@@ -73,6 +73,9 @@ export class LocalProviderRunner implements ProviderRunner {
             try {
                 await ProcessRunner.run(provider.binaryPath, ['--port', port, '--name', provider.name], 6000, {
                     detached: true,
+                    env: {
+                        "JAVA_HOME":"/usr/local/Cellar/openjdk@17/17.0.12/libexec/openjdk.jdk/Contents/Home"
+                    },
                 }, null, (msg: string) => outputChan.print(msg), () => {
                     this.providerState.delete(provider.name);
                 }).then(proc => {

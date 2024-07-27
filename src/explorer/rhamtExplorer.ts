@@ -11,7 +11,7 @@ import { MarkerService } from '../source/markers';
 import { Grouping } from '../tree/configurationNode';
 import { AnalyzerUtil } from '../server/analyzerUtil';
 import { ProviderName, LocalProviderRunner, providerBinaryPath, writeProviderSettingsFile, getProviderConfigs } from '../server/providerUtil';
-import { rhamtChannel } from '../util/console';
+import { providerChannel, rhamtChannel } from '../util/console';
 import * as path from "path";
 
 export class RhamtExplorer {
@@ -160,7 +160,7 @@ export class RhamtExplorer {
                 await LocalProviderRunner.getInstance().run({
                     binaryPath: providerBinaryPath(ProviderName.Java, libPath),
                     name: ProviderName.Java,
-                }, rhamtChannel);
+                }, providerChannel);
             } catch (e) {
                 console.log(`Error setting up provider ${ProviderName.Java}`);
             }

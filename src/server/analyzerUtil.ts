@@ -250,6 +250,8 @@ export class AnalyzerUtil {
         if (!output || output === '') {
             return Promise.reject('output is missing from configuration');
         }
+        params.push("--verbose");
+        params.push("20");
         params.push('--output-file');
         params.push(`${output}/output.yaml`);
         params.push('--dep-output-file');

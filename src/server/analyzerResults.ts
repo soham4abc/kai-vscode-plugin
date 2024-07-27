@@ -58,9 +58,7 @@ export class AnalyzerResults {
                     const incidents = violation.incidents;                    
                     if (incidents) {
                         incidents.forEach(incident => {
-                            const file = (incident.uri as string).replace(this.config.sourceBase(), '');
-                            const root = vscode.workspace.workspaceFolders[0];
-                            const fileUri = vscode.Uri.joinPath(root.uri, file);
+                            const fileUri = vscode.Uri.parse(incident.uri as string);
                             try {
                                 outputChannel1.appendLine(incident.violation);
                                 outputChannel1.appendLine (`Hint: ${JSON.stringify(incident.variables, null, 2)}`);
@@ -68,6 +66,7 @@ export class AnalyzerResults {
                                     type: IIssueType.Hint,
                                     id: ModelService.generateUniqueId(),
                                     quickfixes: [],
+                                   //then set as file : 
                                     file: fileUri.fsPath,
                                     severity: '',
                                     ruleId: violationKey,

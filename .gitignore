@@ -6,3 +6,7 @@ node_modules/
 data/
 out/
 build/
+lib/**
+org.*
+.metadata/
+logs/
