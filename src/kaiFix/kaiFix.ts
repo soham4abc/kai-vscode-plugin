@@ -31,7 +31,7 @@ export class KaiFixDetails {
     private outputChannel: vscode.OutputChannel;
     private _fileNodes: Map<string, FileNode> = new Map();
 
-    constructor(context: ExtensionContext, modelService: ModelService, fileNodeMap ?:  Map<string, FileNode> ) {
+    constructor(context: ExtensionContext, private modelService: ModelService, fileNodeMap ?:  Map<string, FileNode> ) {
         this.context = context;
         this.globalRequestsManager = new GlobalRequestsManager();
         this.processController = new ProcessController(this.globalRequestsManager, 4, 4);
@@ -46,21 +46,29 @@ export class KaiFixDetails {
             console.log(`File changed: ${uri.fsPath}`);
             vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
             if (this._fileNodes.size == 0 ){
-                vscode.window.showInformationMessage(`fileNodes Size =  ${this._fileNodes.size}`);
+                vscode.window.showInformationMessage(`fileNodes Size  zero=  ${this._fileNodes.size}`);
             }
             vscode.window.showInformationMessage(`fileNodes map size =  ${this._fileNodes.size}`);
             const fileNode = this._fileNodes.get(uri.fsPath); 
             const fileMap = this.globalRequestsManager.getFileMap();
+            this.modelService.dataProvider.refreshNode(fileNode);
             if (fileMap.get(uri.fsPath) === undefined) {
                 vscode.window.showInformationMessage(`No entry exists in Map, so adding...+ ${fileNode.file}`);
                 this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
-                fileNode.setInProgress(true, "analyzing");
-                //Run analyzer-lsp and add this request to the global map
+               // this.modelService.reload();
+                //Run analyzer-lsp 
+                vscode.commands.executeCommand('rhamt.runConfiguration').then(() => {
+                    fileNode.setInProgress(true, "analyzing");
+                    this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
+                });
+                //And add this request to the global map
+
             } else {
                 vscode.window.showInformationMessage(`Process is already running, cancelling in-progress activity and rerunning analyzer. Global Manager size: ${this.globalRequestsManager.getFileMap().size}`);
                 if (fileNode) {
                     vscode.commands.executeCommand('rhamt.Stop', fileNode).then(() => {
                         vscode.window.showInformationMessage(`After removing, size should be: ${this.globalRequestsManager.getFileMap().size}`);
+                        fileNode.setInProgress(true, "analyzing");
                         this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
                     });
                 }

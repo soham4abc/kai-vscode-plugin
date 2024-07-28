@@ -72,6 +72,7 @@ export class LocalProviderRunner implements ProviderRunner {
         return new Promise<ProviderCoordinates>(async (resolve, reject) => {
             try {
                 await ProcessRunner.run(provider.binaryPath, ['--port', port, '--name', provider.name], 6000, {
+                    cwd: "/Users/hiteshwaripatel/analyzer/kai-vscode-plugin/logs",
                     detached: true,
                     env: {
                         "JAVA_HOME":"/usr/local/Cellar/openjdk@17/17.0.12/libexec/openjdk.jdk/Contents/Home"
