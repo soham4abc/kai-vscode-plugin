@@ -1,9 +1,9 @@
-import { ExtensionContext, commands, window } from 'vscode';
+import { ExtensionContext, commands, window, workspace, Uri, TextEditor, TextDocumentContentProvider, EventEmitter } from 'vscode';
+import * as vscode from 'vscode';
 import { IHint } from '../server/analyzerModel';
 import { rhamtEvents } from '../events';
 import { ModelService } from '../model/modelService';
 import { FileNode } from '../tree/fileNode';
-import * as vscode from 'vscode';
 import * as os from 'os';
 import * as path from 'path';
 import { MyTaskProvider, Requests, incrementTaskCounter, addRequest } from './taskprovider';
@@ -11,7 +11,7 @@ import { MyTaskProvider, Requests, incrementTaskCounter, addRequest } from './ta
 interface FileState {
     inProgress: boolean;
     taskExecution?: vscode.TaskExecution;
-    tempFileUri?: vscode.Uri;
+    tempFileUri?: Uri;
     originalFilePath?: string;
 }
 
@@ -21,10 +21,8 @@ export class KaiFixDetails {
     private kaiScheme = 'kaifixtext';
     private fileStateMap: Map<string, FileState> = new Map();
     private taskProvider: MyTaskProvider;
-    private tempFileUri: vscode.Uri | undefined;
-    private openedDiffEditor: vscode.TextEditor | undefined;
+    private openedDiffEditors: Map<string, TextEditor> = new Map();
     public static readonly viewType = 'myWebView';
-    private activeDiffUri: vscode.Uri | undefined;
     private myWebviewView?: vscode.WebviewView;
     private myWebViewProvider: MyWebViewProvider;
     private outputChannel: vscode.OutputChannel;
@@ -32,33 +30,33 @@ export class KaiFixDetails {
 
     constructor(context: ExtensionContext, modelService: ModelService, fileNodeMap?: Map<string, FileNode>) {
         this.context = context;
-        this.outputChannel = vscode.window.createOutputChannel("KaiFix Output");
+        this.outputChannel = window.createOutputChannel("KaiFix Output");
         this.taskProvider = new MyTaskProvider(this.outputChannel, this);
         this.myWebViewProvider = new MyWebViewProvider(this);
         this.registerContentProvider();
         this._fileNodes = fileNodeMap || new Map<string, FileNode>();
 
-        const watcher = vscode.workspace.createFileSystemWatcher('**/*', false, false, false);
+        const watcher = workspace.createFileSystemWatcher('**/*', false, false, false);
         watcher.onDidChange(uri => {
             console.log(`File changed: ${uri.fsPath}`);
-            vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
+            window.showInformationMessage(`File changed: ${uri.fsPath}`);
             const fileNode = this._fileNodes.get(uri.fsPath);
             if (fileNode) {
                 fileNode.setInProgress(true, "analyzing");
-                vscode.commands.executeCommand('rhamt.Stop', fileNode).then(() => {
+                commands.executeCommand('rhamt.Stop', fileNode).then(() => {
                     // add code to stop
                 });
             }
         });
         context.subscriptions.push(watcher);
 
-        this.context.subscriptions.push(vscode.commands.registerCommand('rhamt.Stop', async item => {
+        context.subscriptions.push(commands.registerCommand('rhamt.Stop', async item => {
             const fileNode = item as FileNode;
             this.stopFileProcess(fileNode.file);
         }));
 
         context.subscriptions.push(
-            vscode.window.registerWebviewViewProvider(
+            window.registerWebviewViewProvider(
                 MyWebViewProvider.viewType,
                 this.myWebViewProvider
             )
@@ -72,7 +70,7 @@ export class KaiFixDetails {
             const filePath = fileNode.file;
 
             if (this.fileStateMap.get(filePath)?.inProgress) {
-                vscode.window.showInformationMessage(`Process already running for file: ${filePath}`);
+                window.showInformationMessage(`Process already running for file: ${filePath}`);
                 return;
             }
 
@@ -80,7 +78,7 @@ export class KaiFixDetails {
             const issueByFile = issueByFileMap.get(fileNode.file);
             const fs = require('fs').promises;
             this.outputChannel.show(true);
-            const workspaceFolder = vscode.workspace.workspaceFolders[0].name;
+            const workspaceFolder = workspace.workspaceFolders[0].name;
             this.outputChannel.appendLine("Generating the fix: ");
             this.outputChannel.appendLine(`Appname Name: ${workspaceFolder}.`);
             this.outputChannel.appendLine(`Incidents: ${JSON.stringify(this.formatHintsToIncidents(issueByFile), null, 2)}`);
@@ -89,7 +87,7 @@ export class KaiFixDetails {
             const incidents = issueByFile ? this.formatHintsToIncidents(issueByFile) : [];
 
             const postData = {
-                file_name: filePath.replace(vscode.workspace.workspaceFolders[0].uri.path + "/", ""),
+                file_name: filePath.replace(workspace.workspaceFolders[0].uri.path + "/", ""),
                 file_contents: content,
                 application_name: workspaceFolder,
                 incidents: incidents,
@@ -119,9 +117,9 @@ export class KaiFixDetails {
         if (state && state.taskExecution) {
             this.taskProvider.cancelTask(state.taskExecution.task.definition.id);
             this.updateFileState(filePath, { inProgress: false, taskExecution: undefined });
-            vscode.window.showInformationMessage(`Process stopped for file: ${filePath}`);
+            window.showInformationMessage(`Process stopped for file: ${filePath}`);
         } else {
-            vscode.window.showInformationMessage(`No process running for file: ${filePath}`);
+            window.showInformationMessage(`No process running for file: ${filePath}`);
         }
     }
 
@@ -132,7 +130,7 @@ export class KaiFixDetails {
         this.updateFileState(filePath, { inProgress: false, taskExecution: undefined });
 
         if (result.error) {
-            vscode.window.showErrorMessage(result.error);
+            window.showErrorMessage(result.error);
             return;
         }
 
@@ -140,7 +138,7 @@ export class KaiFixDetails {
         console.log(responseText);
 
         const updatedFile = this.extractUpdatedFile(responseText);
-        const virtualDocumentUri = vscode.Uri.parse(`${this.kaiScheme}:${filePath}`);
+        const virtualDocumentUri = Uri.parse(`${this.kaiScheme}:${filePath}`);
 
         const total_Reasoning = this.extractTotalReasoning(responseText);
         if (this.outputChannel) {
@@ -175,16 +173,16 @@ export class KaiFixDetails {
         if (this.outputChannel) {
             this.outputChannel.appendLine(`Temp Filename: ${tempFileName}.`);
         }
+
         this.writeToTempFile(updatedFile, tempFileName).then((tempFileUri) => {
             this.updateFileState(filePath, { tempFileUri, originalFilePath: filePath });
 
-            vscode.commands.executeCommand('vscode.diff', virtualDocumentUri, tempFileUri, `Current ⟷ KaiFix`, {
-                preview: true,
+            commands.executeCommand('vscode.diff', virtualDocumentUri, tempFileUri, `Current ⟷ KaiFix`, {
+                preview: false, // Disable preview mode
             }).then(() => {
-                const editor = vscode.window.activeTextEditor;
+                const editor = window.activeTextEditor;
                 if (editor) {
-                    this.openedDiffEditor = editor;
-                    this.activeDiffUri = virtualDocumentUri;
+                    this.openedDiffEditors.set(filePath, editor);
                     this.watchDiffEditorClose();
                     this.myWebViewProvider.updateWebview(true);
                 }
@@ -192,13 +190,13 @@ export class KaiFixDetails {
                 if (this.outputChannel) {
                     this.outputChannel.appendLine(`Error opening diff view: ${error}`);
                 }
-                vscode.window.showErrorMessage(`Error opening diff view: ${error}`);
+                window.showErrorMessage(`Error opening diff view: ${error}`);
             });
         }, error => {
             if (this.outputChannel) {
                 this.outputChannel.appendLine(`Error writing to temp file: ${error}`);
             }
-            vscode.window.showErrorMessage(`Error writing to temp file: ${error}`);
+            window.showErrorMessage(`Error writing to temp file: ${error}`);
         });
     }
 
@@ -217,59 +215,69 @@ export class KaiFixDetails {
 
     private watchDiffEditorClose(): void {
         this.context.subscriptions.push(window.onDidChangeActiveTextEditor(this.handleActiveEditorChange.bind(this)));
-        this.context.subscriptions.push(vscode.window.onDidChangeWindowState(windowState => {
+        this.context.subscriptions.push(window.onDidChangeWindowState(windowState => {
             if (windowState.focused) {
-                this.handleActiveEditorChange(vscode.window.activeTextEditor);
+                this.handleActiveEditorChange(window.activeTextEditor);
+            }
+        }));
+
+        this.context.subscriptions.push(workspace.onDidCloseTextDocument(document => {
+            const closedPath = document.uri.fsPath;
+            if (this.openedDiffEditors.has(closedPath)) {
+                this.openedDiffEditors.delete(closedPath);
             }
         }));
     }
 
-    private handleActiveEditorChange(editor?: vscode.TextEditor): void {
-        let diffFocused = false;
-
-        if (editor) {
-            const activeDocumentUri = editor.document.uri;
-            if (this.activeDiffUri && (activeDocumentUri.toString() === this.activeDiffUri.toString() || activeDocumentUri.toString() === this.tempFileUri?.toString())) {
-                diffFocused = true;
-            }
+    private handleActiveEditorChange(editor?: TextEditor): void {
+        if (!editor) {
+            return;
         }
-        this.myWebViewProvider.updateWebview(diffFocused);
+
+        const activeDocumentUri = editor.document.uri;
+        const filePath = activeDocumentUri.fsPath;
+        if (this.openedDiffEditors.has(filePath)) {
+            // The editor is one of the tracked diff editors.
+        }
+
+        const isDiffFocused = this.openedDiffEditors.has(filePath);
+        this.myWebViewProvider.updateWebview(isDiffFocused);
     }
 
-    private async saveSpecificFile(tempFileUri: vscode.Uri): Promise<boolean> {
-        const editor = vscode.window.visibleTextEditors.find(editor => editor.document.uri.toString() === tempFileUri.toString());
+    private async saveSpecificFile(tempFileUri: Uri): Promise<boolean> {
+        const editor = window.visibleTextEditors.find(editor => editor.document.uri.toString() === tempFileUri.toString());
         if (editor) {
-            await vscode.commands.executeCommand('workbench.action.files.save');
+            await commands.executeCommand('workbench.action.files.save');
             return true;
         }
         return false;
     }
 
-    private async applyChangesAndDeleteTempFile(originalFileUri: vscode.Uri, tempFileUri: vscode.Uri): Promise<void> {
+    private async applyChangesAndDeleteTempFile(originalFileUri: Uri, tempFileUri: Uri): Promise<void> {
         try {
             const saved = await this.saveSpecificFile(tempFileUri);
             if (saved) {
-                vscode.window.showInformationMessage('Temp file saved.');
+                window.showInformationMessage('Temp file saved.');
             } else {
-                vscode.window.showInformationMessage('Temp file was not open in an editor, or it was not dirty.');
+                window.showInformationMessage('Temp file was not open in an editor, or it was not dirty.');
             }
-            const tempFileContent = await vscode.workspace.fs.readFile(tempFileUri);
-            await vscode.workspace.fs.writeFile(originalFileUri, tempFileContent);
-            await vscode.workspace.fs.delete(tempFileUri);
-            await this.closeEditor(this.openedDiffEditor);
-            vscode.window.showInformationMessage('Changes applied successfully.');
+            const tempFileContent = await workspace.fs.readFile(tempFileUri);
+            await workspace.fs.writeFile(originalFileUri, tempFileContent);
+            await workspace.fs.delete(tempFileUri);
+            await this.closeEditor(this.openedDiffEditors.get(originalFileUri.fsPath));
+            window.showInformationMessage('Changes applied successfully.');
         } catch (error) {
             console.error('Failed to apply changes or delete temporary file:', error);
-            vscode.window.showErrorMessage('Failed to apply changes to the original file.');
+            window.showErrorMessage('Failed to apply changes to the original file.');
         }
     }
 
-    private async writeToTempFile(content: string, kaifixFilename: string): Promise<vscode.Uri> {
+    private async writeToTempFile(content: string, kaifixFilename: string): Promise<Uri> {
         const tempFilePath = path.join(os.tmpdir(), kaifixFilename);
-        const tempFileUri = vscode.Uri.file(tempFilePath);
+        const tempFileUri = Uri.file(tempFilePath);
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(content);
-        await vscode.workspace.fs.writeFile(tempFileUri, uint8Array);
+        await workspace.fs.writeFile(tempFileUri, uint8Array);
         return tempFileUri;
     }
 
@@ -280,11 +288,11 @@ export class KaiFixDetails {
                 const updatedFileContent = responseObj.updated_file;
                 return updatedFileContent || 'No content available in updated_file.';
             } else {
-                vscode.window.showInformationMessage('The "updated_file" property does not exist in the response object.');
+                window.showInformationMessage('The "updated_file" property does not exist in the response object.');
                 return 'The "updated_file" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -296,11 +304,11 @@ export class KaiFixDetails {
                 const total_reasoningContent = responseObj.total_reasoning;
                 return total_reasoningContent || 'No content available in total_reasoning.';
             } else {
-                vscode.window.showInformationMessage('The "total_reasoning" property does not exist in the response object.');
+                window.showInformationMessage('The "total_reasoning" property does not exist in the response object.');
                 return 'The "total_reasoning" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -312,11 +320,11 @@ export class KaiFixDetails {
                 const used_promptsContent = responseObj.used_prompts;
                 return used_promptsContent || 'No content available in used_prompts.';
             } else {
-                vscode.window.showInformationMessage('The "used_prompts" property does not exist in the response object.');
+                window.showInformationMessage('The "used_prompts" property does not exist in the response object.');
                 return 'The "used_prompts" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -328,11 +336,11 @@ export class KaiFixDetails {
                 const model_idContent = responseObj.model_id;
                 return model_idContent || 'No content available in model_id.';
             } else {
-                vscode.window.showInformationMessage('The "model_id" property does not exist in the response object.');
+                window.showInformationMessage('The "model_id" property does not exist in the response object.');
                 return 'The "model_id" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -344,11 +352,11 @@ export class KaiFixDetails {
                 const additional_informationContent = responseObj.additional_information;
                 return additional_informationContent || 'No content available in additional_information.';
             } else {
-                vscode.window.showInformationMessage('The "additional_information" property does not exist in the response object.');
+                window.showInformationMessage('The "additional_information" property does not exist in the response object.');
                 return 'The "additional_information" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -360,11 +368,11 @@ export class KaiFixDetails {
                 const llm_resultsContent = responseObj.llm_results;
                 return llm_resultsContent || 'No content available in llm_results.';
             } else {
-                vscode.window.showInformationMessage('The "llm_results" property does not exist in the response object.');
+                window.showInformationMessage('The "llm_results" property does not exist in the response object.');
                 return 'The "llm_results" property does not exist in the response object.';
             }
         } catch (error) {
-            vscode.window.showInformationMessage('Failed to parse jsonResponse:', error);
+            window.showInformationMessage('Failed to parse jsonResponse:', error);
             return 'An error occurred while parsing the JSON response.';
         }
     }
@@ -376,48 +384,85 @@ export class KaiFixDetails {
     }
 
     private registerContentProvider() {
-        const provider = new (class implements vscode.TextDocumentContentProvider {
-            onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+        const provider = new (class implements TextDocumentContentProvider {
+            onDidChangeEmitter = new EventEmitter<Uri>();
             onDidChange = this.onDidChangeEmitter.event;
-            provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
+            provideTextDocumentContent(uri: Uri): Thenable<string> {
                 const filePath = uri.path;
-                const fileUri = vscode.Uri.file(filePath);
-                return vscode.workspace.fs.readFile(fileUri).then(buffer => {
+                const fileUri = Uri.file(filePath);
+                return workspace.fs.readFile(fileUri).then(buffer => {
                     return buffer.toString();
                 });
             }
         })();
-        this.context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(this.kaiScheme, provider));
+        this.context.subscriptions.push(workspace.registerTextDocumentContentProvider(this.kaiScheme, provider));
     }
 
-    private async closeEditor(editor: vscode.TextEditor): Promise<void> {
-        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    private async closeEditor(editor?: TextEditor): Promise<void> {
+        if (editor) {
+            await commands.executeCommand('workbench.action.closeActiveEditor');
+        }
     }
 
     private resetState(): void {
-        this.openedDiffEditor = undefined;
-        this.tempFileUri = undefined;
-        this.activeDiffUri = undefined;
-    }
-
-    public async rejectChangesCommandHandler(): Promise<void> {
-        if (this.tempFileUri) {
-            await vscode.workspace.fs.delete(this.tempFileUri);
-            await this.closeEditor(this.openedDiffEditor);
-            this.resetState();
-        }
+        this.openedDiffEditors.clear();
     }
 
     public async acceptChangesCommandHandler(): Promise<void> {
-        const fileState = Array.from(this.fileStateMap.values()).find(state =>
-            this.openedDiffEditor?.document.uri.toString() === state.tempFileUri?.toString()
-        );
-        if (!fileState || !fileState.tempFileUri || !fileState.originalFilePath) {
-            vscode.window.showErrorMessage("No changes to apply.");
+        if (!this.openedDiffEditors || this.openedDiffEditors.size === 0) {
+            window.showErrorMessage("No diff editor is currently open.");
             return;
         }
-        const originalFileUri = vscode.Uri.file(fileState.originalFilePath);
+
+        const activeEditor = window.activeTextEditor;
+        if (!activeEditor) {
+            window.showErrorMessage("No active editor found.");
+            return;
+        }
+
+        const activeEditorPath = activeEditor.document.uri.fsPath;
+        console.log(`Active editor path: ${activeEditorPath}`);
+
+        const fileState = Array.from(this.fileStateMap.values()).find(state =>
+            state.tempFileUri?.fsPath === activeEditorPath
+        );
+
+        if (!fileState || !fileState.tempFileUri || !fileState.originalFilePath) {
+            console.log(`No matching fileState found for: ${activeEditorPath}`);
+            window.showErrorMessage("No changes to apply.");
+            return;
+        }
+
+        console.log(`Applying changes for file: ${fileState.originalFilePath}`);
+        const originalFileUri = Uri.file(fileState.originalFilePath);
         await this.applyChangesAndDeleteTempFile(originalFileUri, fileState.tempFileUri);
+        this.resetState();
+        this.myWebViewProvider.updateWebview(false);
+    }
+
+    public async rejectChangesCommandHandler(): Promise<void> {
+        const activeEditor = window.activeTextEditor;
+        if (!activeEditor) {
+            window.showErrorMessage("No active editor found.");
+            return;
+        }
+
+        const activeEditorPath = activeEditor.document.uri.fsPath;
+        console.log(`Active editor path for reject: ${activeEditorPath}`);
+
+        const fileState = Array.from(this.fileStateMap.values()).find(state =>
+            state.tempFileUri?.fsPath === activeEditorPath
+        );
+
+        if (!fileState || !fileState.tempFileUri) {
+            window.showErrorMessage("No changes to reject.");
+            return;
+        }
+
+        console.log(`Rejecting changes for file: ${fileState.originalFilePath}`);
+
+        await this.closeEditor(this.openedDiffEditors.get(activeEditorPath));
+        await workspace.fs.delete(fileState.tempFileUri);
         this.resetState();
     }
 
