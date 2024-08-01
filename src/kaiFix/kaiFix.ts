@@ -107,19 +107,26 @@ export class KaiFixDetails {
         }));
     }
 
+    private normalizePath(filePath: string): string {
+        return path.normalize(filePath);
+    }
+
     private updateFileState(filePath: string, state: Partial<FileState>) {
-        const currentState = this.fileStateMap.get(filePath) || { inProgress: false };
-        this.fileStateMap.set(filePath, { ...currentState, ...state });
+        const normalizedPath = this.normalizePath(filePath);
+        const currentState = this.fileStateMap.get(normalizedPath) || { inProgress: false };
+        this.fileStateMap.set(normalizedPath, { ...currentState, ...state });
+        console.log(`Updated fileStateMap for: ${normalizedPath}`);
     }
 
     private stopFileProcess(filePath: string) {
-        const state = this.fileStateMap.get(filePath);
+        const normalizedPath = this.normalizePath(filePath);
+        const state = this.fileStateMap.get(normalizedPath);
         if (state && state.taskExecution) {
             this.taskProvider.cancelTask(state.taskExecution.task.definition.id);
-            this.updateFileState(filePath, { inProgress: false, taskExecution: undefined });
-            window.showInformationMessage(`Process stopped for file: ${filePath}`);
+            this.updateFileState(normalizedPath, { inProgress: false, taskExecution: undefined });
+            window.showInformationMessage(`Process stopped for file: ${normalizedPath}`);
         } else {
-            window.showInformationMessage(`No process running for file: ${filePath}`);
+            window.showInformationMessage(`No process running for file: ${normalizedPath}`);
         }
     }
 
@@ -222,7 +229,7 @@ export class KaiFixDetails {
         }));
 
         this.context.subscriptions.push(workspace.onDidCloseTextDocument(document => {
-            const closedPath = document.uri.fsPath;
+            const closedPath = this.normalizePath(document.uri.fsPath);
             if (this.openedDiffEditors.has(closedPath)) {
                 this.openedDiffEditors.delete(closedPath);
             }
@@ -235,17 +242,15 @@ export class KaiFixDetails {
         }
 
         const activeDocumentUri = editor.document.uri;
-        const filePath = activeDocumentUri.fsPath;
-        if (this.openedDiffEditors.has(filePath)) {
-            // The editor is one of the tracked diff editors.
-        }
+        const normalizedPath = this.normalizePath(activeDocumentUri.fsPath);
+        console.log(`Active editor path (normalized): ${normalizedPath}`);
 
-        const isDiffFocused = this.openedDiffEditors.has(filePath);
+        const isDiffFocused = this.openedDiffEditors.has(normalizedPath);
         this.myWebViewProvider.updateWebview(isDiffFocused);
     }
 
     private async saveSpecificFile(tempFileUri: Uri): Promise<boolean> {
-        const editor = window.visibleTextEditors.find(editor => editor.document.uri.toString() === tempFileUri.toString());
+        const editor = window.visibleTextEditors.find(editor => this.normalizePath(editor.document.uri.toString()) === this.normalizePath(tempFileUri.toString()));
         if (editor) {
             await commands.executeCommand('workbench.action.files.save');
             return true;
@@ -255,16 +260,26 @@ export class KaiFixDetails {
 
     private async applyChangesAndDeleteTempFile(originalFileUri: Uri, tempFileUri: Uri): Promise<void> {
         try {
+            // Check if the temp file exists before attempting to save or delete
+            const tempFileExists = await workspace.fs.stat(tempFileUri)
+                .then(() => true, () => false);
+
+            if (!tempFileExists) {
+                window.showErrorMessage('Temporary file not found. Unable to apply changes.');
+                return;
+            }
+
             const saved = await this.saveSpecificFile(tempFileUri);
             if (saved) {
                 window.showInformationMessage('Temp file saved.');
             } else {
                 window.showInformationMessage('Temp file was not open in an editor, or it was not dirty.');
             }
+
             const tempFileContent = await workspace.fs.readFile(tempFileUri);
             await workspace.fs.writeFile(originalFileUri, tempFileContent);
             await workspace.fs.delete(tempFileUri);
-            await this.closeEditor(this.openedDiffEditors.get(originalFileUri.fsPath));
+            await this.closeEditor(this.openedDiffEditors.get(this.normalizePath(originalFileUri.fsPath)));
             window.showInformationMessage('Changes applied successfully.');
         } catch (error) {
             console.error('Failed to apply changes or delete temporary file:', error);
@@ -279,6 +294,26 @@ export class KaiFixDetails {
         const uint8Array = encoder.encode(content);
         await workspace.fs.writeFile(tempFileUri, uint8Array);
         return tempFileUri;
+    }
+
+    private async rejectChangesAndDeleteTempFile(tempFileUri: Uri): Promise<void> {
+        try {
+            // Check if the temp file exists before attempting to delete
+            const tempFileExists = await workspace.fs.stat(tempFileUri)
+                .then(() => true, () => false);
+
+            if (!tempFileExists) {
+                window.showErrorMessage('Temporary file not found. Unable to reject changes.');
+                return;
+            }
+
+            await this.closeEditor(window.activeTextEditor);
+            await workspace.fs.delete(tempFileUri);
+            window.showInformationMessage('Changes rejected successfully.');
+        } catch (error) {
+            console.error('Failed to reject changes or delete temporary file:', error);
+            window.showErrorMessage('Failed to reject changes.');
+        }
     }
 
     private extractUpdatedFile(jsonResponse: string): string {
@@ -404,10 +439,6 @@ export class KaiFixDetails {
         }
     }
 
-    private resetState(): void {
-        this.openedDiffEditors.clear();
-    }
-
     public async acceptChangesCommandHandler(): Promise<void> {
         if (!this.openedDiffEditors || this.openedDiffEditors.size === 0) {
             window.showErrorMessage("No diff editor is currently open.");
@@ -420,12 +451,12 @@ export class KaiFixDetails {
             return;
         }
 
-        const activeEditorPath = activeEditor.document.uri.fsPath;
-        console.log(`Active editor path: ${activeEditorPath}`);
+        const activeEditorPath = this.normalizePath(activeEditor.document.uri.fsPath);
+        console.log(`Active editor path (normalized): ${activeEditorPath}`);
 
-        const fileState = Array.from(this.fileStateMap.values()).find(state =>
-            state.tempFileUri?.fsPath === activeEditorPath
-        );
+        console.log('Current fileStateMap keys:', Array.from(this.fileStateMap.keys()));
+
+        const fileState = this.fileStateMap.get(activeEditorPath);
 
         if (!fileState || !fileState.tempFileUri || !fileState.originalFilePath) {
             console.log(`No matching fileState found for: ${activeEditorPath}`);
@@ -436,8 +467,22 @@ export class KaiFixDetails {
         console.log(`Applying changes for file: ${fileState.originalFilePath}`);
         const originalFileUri = Uri.file(fileState.originalFilePath);
         await this.applyChangesAndDeleteTempFile(originalFileUri, fileState.tempFileUri);
-        this.resetState();
+        
+        // Reset the state for the accepted file
+        this.fileStateMap.delete(activeEditorPath);
+        this.openedDiffEditors.delete(activeEditorPath);
+        
         this.myWebViewProvider.updateWebview(false);
+
+        this.refreshButtonsForRemainingFiles();
+    }
+
+    private refreshButtonsForRemainingFiles() {
+        if (this.fileStateMap.size > 0) {
+            this.myWebViewProvider.updateWebview(true);
+        } else {
+            this.myWebViewProvider.updateWebview(false);
+        }
     }
 
     public async rejectChangesCommandHandler(): Promise<void> {
@@ -447,23 +492,29 @@ export class KaiFixDetails {
             return;
         }
 
-        const activeEditorPath = activeEditor.document.uri.fsPath;
-        console.log(`Active editor path for reject: ${activeEditorPath}`);
+        const activeEditorPath = this.normalizePath(activeEditor.document.uri.fsPath);
+        console.log(`Active editor path (normalized) for reject: ${activeEditorPath}`);
 
-        const fileState = Array.from(this.fileStateMap.values()).find(state =>
-            state.tempFileUri?.fsPath === activeEditorPath
-        );
+        console.log('Current fileStateMap keys:', Array.from(this.fileStateMap.keys()));
+
+        const fileState = this.fileStateMap.get(activeEditorPath);
 
         if (!fileState || !fileState.tempFileUri) {
+            console.log(`No matching fileState found for: ${activeEditorPath}`);
             window.showErrorMessage("No changes to reject.");
             return;
         }
 
         console.log(`Rejecting changes for file: ${fileState.originalFilePath}`);
 
-        await this.closeEditor(this.openedDiffEditors.get(activeEditorPath));
-        await workspace.fs.delete(fileState.tempFileUri);
-        this.resetState();
+        await this.rejectChangesAndDeleteTempFile(fileState.tempFileUri);
+     
+        this.fileStateMap.delete(activeEditorPath);
+        this.openedDiffEditors.delete(activeEditorPath);
+
+        this.myWebViewProvider.updateWebview(false);
+
+        this.refreshButtonsForRemainingFiles();
     }
 
     public async handleMessage(message: any): Promise<void> {
