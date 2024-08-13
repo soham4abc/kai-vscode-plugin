@@ -71,6 +71,8 @@ export class AnalyzerResults {
                                     file: fileUri.fsPath,
                                     severity: '',
                                     ruleId: violationKey,
+                                    violationDiscription: violation.description, 
+                                    ruleSetDiscription: ruleset.description,
                                     rulesetName: ruleset.name,
                                     effort: '',
                                     title: '',
