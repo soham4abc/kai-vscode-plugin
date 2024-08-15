@@ -11,9 +11,10 @@ import { ModelService } from '../src/model/modelService';
 suite('RHAMT / Issue Explorer', () => {
 
     let modelService: ModelService;
+    let context: vscode.ExtensionContext;
 
     setup(() => {
-        modelService = new ModelService(new RhamtModel(), __dirname, getReportEndpoints(__dirname));
+        modelService = new ModelService(new RhamtModel(), __dirname, getReportEndpoints(__dirname),context);
     });
 
     test('model service', () => {
