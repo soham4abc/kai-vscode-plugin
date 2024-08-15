@@ -37,7 +37,6 @@ export class KaiFixDetails {
         this.processController = new ProcessController(this.globalRequestsManager, 4, 4);
         this.myWebViewProvider = new MyWebViewProvider(this);
         this.registerContentProvider();
-        this.registerContentProvider();
         this._fileNodes = fileNodeMap || new Map<string, FileNode>();
       
         vscode.window.showInformationMessage(`this is process controller: ${this.processController.processQueue.length}`);
@@ -78,6 +77,7 @@ export class KaiFixDetails {
                 vscode.window.showErrorMessage('Invalid item passed to rhamt.Stop command');
             }
         }));
+
 
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(
@@ -126,7 +126,7 @@ export class KaiFixDetails {
                 file_contents: content,
                 application_name: workspaceFolder,
                 incidents: incidents,
-                include_llm_results: "True"
+                include_llm_results: true,
             };
 
             const url = 'http://0.0.0.0:8080/get_incident_solutions_for_file';
@@ -143,25 +143,24 @@ export class KaiFixDetails {
                     body: JSON.stringify(postData),
                 });
                 
+
             
             fileNode.setInProgress(false);
-
             fileNode.refresh();
+
 
                 if (!response.ok) {
                     vscode.window.showInformationMessage(` Error: ${response.toString}.`);
                     vscode.window.showInformationMessage(` response: ${await response.text()}.`);
                     throw new Error(`HTTP error! status: ${response.status}`);  
                 }
-               // vscode.window.showInformationMessage(`Yay! Kyma ${response.status}.`);
-                const responseText = await response.text(); // Get the raw response text
-                console.log(responseText);
-     
 
-               
+            const responseText = await response.json(); 
+            console.log(responseText);
+           
             const updatedFile = this.extractUpdatedFile(responseText);
             const virtualDocumentUri = vscode.Uri.parse(`${this.kaiScheme}:${this.issueFilePath}`);
-            
+       
             
             const total_Reasoning = this.extractTotalReasoning(responseText);
             this.outputChannel.appendLine(`---- Total Reasoning: ---- \n ${total_Reasoning}\n`);
@@ -485,16 +484,20 @@ export class KaiFixDetails {
 
     private formatHintsToIncidents(hints: IHint[]) {
         return hints.map(hint => ({
-        violation_name: hint.ruleId,
         ruleset_name: hint.rulesetName,
-        incident_variables: {
-            file: hint.variables['file'] || '',
-            kind: hint.variables['kind'] || '',
-            name: hint.variables['name'] || '',
-            package: hint.variables['package'] || '',
-        },
-        line_number: hint.lineNumber,
-        analysis_message: hint.hint,
+        ruleset_description: hint.ruleSetDiscription || 'No Discription', 
+        violation_name: hint.ruleId,     
+        violation_description: hint.violationDiscription || 'No Discription',
+        uri : hint.file || '',
+        message: hint.hint || 'No message', 
+        // incident_variables: {
+        //     file: hint.variables['file'] || '',
+        //     kind: hint.variables['kind'] || '',
+        //     name: hint.variables['name'] || '',
+        //     package: hint.variables['package'] || '',
+        // },
+        // line_number: hint.lineNumber,
+        // analysis_message: hint.hint,
         }));
     }
     
