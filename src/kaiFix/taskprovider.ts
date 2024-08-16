@@ -180,10 +180,7 @@ export class ProcessController {
             } else {
                 this.outputChannel.appendLine(`Task ID is undefined or not found. Cannot cancel task.`);
             }
-        } else {
-            requests = requests.filter(task => task.id !== id);
-            this.outputChannel.appendLine(`Task ${id} removed from queue.`);
-        }
+        } 
         this.processQueue(); 
     }    
 }
