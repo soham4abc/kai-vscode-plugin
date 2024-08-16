@@ -33,10 +33,6 @@ export function addRequest(request: Requests) {
     console.log(`Task added to queue: ${JSON.stringify(request)}`);
 }
 
-export function removeRequestById(id: number) {
-    requests = requests.filter(request => request.id !== id);
-}
-
 export class ProcessController {
     private maxKaiWorkers: number;
     private maxKantraWorkers: number;
