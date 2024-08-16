@@ -262,7 +262,7 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
 
     private async runKantraBinary(): Promise<any> {
         this.outputChannel.appendLine(`Running Kantra task for task ${this.request.name}`);
-        // Simulate an async task that runs the binary and gets a result
+        // todo: change here 
         return new Promise<any>((resolve) => {
             setTimeout(() => {
                 if (!runningTasks.has(this.request.id)) {
@@ -270,8 +270,8 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
                     return;
                 }
                 this.outputChannel.appendLine(`hi from kantra`);
-                resolve({ result: "Kantra binary result" }); // Replace with actual result
-            }, 120000); // Simulate task duration of 2 minutes
+                resolve({ result: "Kantra binary result" }); 
+            }, 120000); 
         });
     }
 }
