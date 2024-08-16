@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import fetch from 'node-fetch';
+import * as path from 'path';
 
 export interface Requests {
     id: number;
@@ -91,11 +92,10 @@ export class ProcessController {
         const currentState = fileStateMap.get(filePath) || {};
         fileStateMap.set(filePath, { ...currentState, ...state });
     }
-
     async startTask(request: Requests) {
         this.outputChannel.appendLine(`Starting task: ${JSON.stringify(request)}`);
         const task = new vscode.Task(
-            { type: 'mytask', task: request.name, requestType: request.type },
+            { type: 'mytask', task: request.name, requestType: request.type, id: request.id },  
             vscode.TaskScope.Workspace,
             request.name,
             'myTaskProvider',
@@ -103,11 +103,12 @@ export class ProcessController {
                 return new SimplePseudoterminal(request, this.outputChannel, this);
             })
         );
-
+    
         const execution = await vscode.tasks.executeTask(task);
         runningTasks.set(request.id, { taskExecution: execution, workerType: request.type });
-        this.updateFileState(request.file, { inProgress: true, taskExecution: execution }); // Track task execution
+        this.updateFileState(request.file, { inProgress: true, taskExecution: execution }); 
     }
+    
 
     async completeTask(request: Requests, result: any) {
         if (request.type === "kai") {
@@ -116,37 +117,75 @@ export class ProcessController {
             this.activeKantraTasks.delete(request.id);
         }
         runningTasks.delete(request.id);
-        this.updateFileState(request.file, { inProgress: false, taskExecution: undefined }); // Update file state
+        this.updateFileState(request.file, { inProgress: false, taskExecution: undefined }); 
         this.outputChannel.appendLine(`Completed task: ${JSON.stringify(request)}`);
-        this.kaiFixDetails.handleTaskResult(request.file, result); // Send result back to KaiFixDetails
-        this.processQueue(); // Check for next task in the queue
+        // Send result back to KaiFixDetails
+        this.kaiFixDetails.handleTaskResult(request.file, result); 
+        this.processQueue(); 
+    }
+
+    async stopTask(filePath: string) {
+        const normalizedPath = path.normalize(filePath);
+        const state = fileStateMap.get(normalizedPath);
+        this.outputChannel.appendLine(`Stop requested for file: ${normalizedPath}`);
+    
+        if (state && state.taskExecution) {
+            this.outputChannel.appendLine(`Stopping running task for file: ${normalizedPath}`);
+            this.cancelTask(state.taskExecution.task.definition.id);
+        } else {
+            this.outputChannel.appendLine(`No running task found for file: ${normalizedPath}, checking queued tasks.`);
+            
+            // Check if the file iss queued
+            const requestIndex = requests.findIndex(req => path.normalize(req.file) === normalizedPath);
+            if (requestIndex > -1) {
+                this.outputChannel.appendLine(`Found queued task for file: ${normalizedPath}, removing from queue.`);
+                // Remove task from queue
+                requests.splice(requestIndex, 1);
+                this.updateFileState(normalizedPath, { inProgress: false, taskExecution: undefined });
+                this.outputChannel.appendLine(`Queued task removed for file: ${normalizedPath}`);
+            } else {
+                this.outputChannel.appendLine(`No process running or queued for file: ${normalizedPath}`);
+            }
+        }
+    
+        this.outputChannel.appendLine(`Current runningTasks: ${JSON.stringify([...runningTasks.keys()])}`);
+        this.outputChannel.appendLine(`Current fileStateMap: ${JSON.stringify([...fileStateMap.entries()])}`);
     }
 
     async cancelTask(id: number) {
         this.outputChannel.appendLine(`Cancelling task with id - ${id}`);
         const exeProcess = runningTasks.get(id);
         if (exeProcess) {
-            exeProcess.taskExecution.terminate();
-            runningTasks.delete(id);
-            this.outputChannel.appendLine(`Task ${id} cancelled.`);
+            const taskExecution = exeProcess.taskExecution;
+            const taskId = taskExecution?.task?.definition?.id;
 
-            if (exeProcess.workerType === 'kai') {
-                this.activeKaiTasks.delete(id);
-            } else if (exeProcess.workerType === 'kantra') {
-                this.activeKantraTasks.delete(id);
-            }
-
-            // Update file state
-            const file = [...fileStateMap.entries()].find(([, state]) => state.taskExecution === exeProcess.taskExecution)?.[0];
-            if (file) {
-                this.updateFileState(file, { inProgress: false, taskExecution: undefined });
+            this.outputChannel.appendLine(`Task definition: ${JSON.stringify(taskExecution?.task?.definition)}`);
+    
+            if (taskId) {
+                taskExecution.terminate();
+                runningTasks.delete(id);
+                this.outputChannel.appendLine(`Task ${id} cancelled.`);
+    
+                if (exeProcess.workerType === 'kai') {
+                    this.activeKaiTasks.delete(id);
+                } else if (exeProcess.workerType === 'kantra') {
+                    this.activeKantraTasks.delete(id);
+                }
+    
+                // Update file state
+                const file = [...fileStateMap.entries()].find(([, state]) => state.taskExecution?.task?.definition?.id === taskId)?.[0];
+                if (file) {
+                    this.updateFileState(file, { inProgress: false, taskExecution: undefined });
+                }
+            } else {
+                this.outputChannel.appendLine(`Task ID is undefined or not found. Cannot cancel task.`);
             }
         } else {
             requests = requests.filter(task => task.id !== id);
             this.outputChannel.appendLine(`Task ${id} removed from queue.`);
         }
-        this.processQueue(); // Check for available tasks after cancellation
-    }
+        this.processQueue(); 
+    }    
 }
 
 class SimplePseudoterminal implements vscode.Pseudoterminal {
@@ -214,7 +253,7 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
 
             const responseText = await response.text();
             this.outputChannel.appendLine(`Kai backend processed for task ${this.request.name}`);
-            return { result: responseText }; // Replace with actual result
+            return { result: responseText };
         } catch (error) {
             this.outputChannel.appendLine(`Error making POST request: ${error}`);
             return { error: `Failed to perform the operation. ${error}` };
@@ -241,7 +280,8 @@ export class MyTaskProvider implements vscode.TaskProvider {
     private processController: ProcessController;
 
     constructor(outputChannel: vscode.OutputChannel, kaiFixDetails: any) {
-        this.processController = new ProcessController(2, 2, outputChannel, kaiFixDetails); // Initialize with 2 kai and 2 kantra workers
+        // Initialize with 2 kai and 2 kantra workers
+        this.processController = new ProcessController(2, 2, outputChannel, kaiFixDetails); 
     }
 
     provideTasks(token: vscode.CancellationToken): vscode.ProviderResult<vscode.Task[]> {
@@ -257,5 +297,8 @@ export class MyTaskProvider implements vscode.TaskProvider {
     }
     processQueue() {
         this.processController.processQueue();
+    }
+    stopTask(filePath: string){
+        this.processController.stopTask(filePath);
     }
 }

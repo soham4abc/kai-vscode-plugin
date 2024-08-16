@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Red Hat. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import { ExtensionContext, commands, window, workspace, Uri, TextEditor, TextDocumentContentProvider, EventEmitter } from 'vscode';
 import * as vscode from 'vscode';
 import { IHint } from '../server/analyzerModel';
@@ -44,7 +48,7 @@ export class KaiFixDetails {
             if (fileNode) {
                 fileNode.setInProgress(true, "analyzing");
                 commands.executeCommand('rhamt.Stop', fileNode).then(() => {
-                    // add code to stop
+                    this.stopFileProcess(fileNode.file);
                 });
             }
         });
@@ -120,14 +124,9 @@ export class KaiFixDetails {
 
     private stopFileProcess(filePath: string) {
         const normalizedPath = this.normalizePath(filePath);
-        const state = this.fileStateMap.get(normalizedPath);
-        if (state && state.taskExecution) {
-            this.taskProvider.cancelTask(state.taskExecution.task.definition.id);
-            this.updateFileState(normalizedPath, { inProgress: false, taskExecution: undefined });
-            window.showInformationMessage(`Process stopped for file: ${normalizedPath}`);
-        } else {
-            window.showInformationMessage(`No process running for file: ${normalizedPath}`);
-        }
+        window.showInformationMessage(`Stop requested for file: ${normalizedPath}`);
+        this.taskProvider.stopTask(filePath);
+
     }
 
     public handleTaskResult(filePath: string, result: any) {
