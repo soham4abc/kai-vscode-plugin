@@ -12,7 +12,7 @@ export interface Requests {
 
 let taskcounter = 0;
 let requests: Requests[] = [];
-const fileStateMap: Map<string, { inProgress: boolean, taskExecution?: vscode.TaskExecution }> = new Map(); 
+const fileProcessMap: Map<string, { inProgress: boolean, taskExecution?: vscode.TaskExecution }> = new Map(); 
 
 export const runningTasks = new Map<number, { taskExecution: vscode.TaskExecution, workerType: 'kai' | 'kantra' }>();
 
@@ -85,12 +85,12 @@ export class ProcessController {
     }
 
     private isFileInProgress(filePath: string): boolean {
-        return fileStateMap.get(filePath)?.inProgress || false;
+        return fileProcessMap.get(filePath)?.inProgress || false;
     }
 
     private updateFileState(filePath: string, state: { inProgress: boolean, taskExecution?: vscode.TaskExecution }) {
-        const currentState = fileStateMap.get(filePath) || {};
-        fileStateMap.set(filePath, { ...currentState, ...state });
+        const currentState = fileProcessMap.get(filePath) || {};
+        fileProcessMap.set(filePath, { ...currentState, ...state });
     }
     async startTask(request: Requests) {
         this.outputChannel.appendLine(`Starting task: ${JSON.stringify(request)}`);
@@ -126,7 +126,7 @@ export class ProcessController {
 
     async stopTask(filePath: string) {
         const normalizedPath = path.normalize(filePath);
-        const state = fileStateMap.get(normalizedPath);
+        const state = fileProcessMap.get(normalizedPath);
         this.outputChannel.appendLine(`Stop requested for file: ${normalizedPath}`);
     
         if (state && state.taskExecution) {
@@ -149,7 +149,7 @@ export class ProcessController {
         }
     
         this.outputChannel.appendLine(`Current runningTasks: ${JSON.stringify([...runningTasks.keys()])}`);
-        this.outputChannel.appendLine(`Current fileStateMap: ${JSON.stringify([...fileStateMap.entries()])}`);
+        this.outputChannel.appendLine(`Current fileProcessMap: ${JSON.stringify([...fileProcessMap.entries()])}`);
     }
 
     async cancelTask(id: number) {
@@ -173,7 +173,7 @@ export class ProcessController {
                 }
     
                 // Update file state
-                const file = [...fileStateMap.entries()].find(([, state]) => state.taskExecution?.task?.definition?.id === taskId)?.[0];
+                const file = [...fileProcessMap.entries()].find(([, state]) => state.taskExecution?.task?.definition?.id === taskId)?.[0];
                 if (file) {
                     this.updateFileState(file, { inProgress: false, taskExecution: undefined });
                 }
