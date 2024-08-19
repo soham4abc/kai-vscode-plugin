@@ -2,10 +2,10 @@
     "name": "kai-vscode-plugin",
     "displayName": "Kai",
     "description": "Konveyor AI",
-    "version": "0.0.2",
+    "version": "0.0.1",
     "license": "epl-2.0",
-    "publisher": "konveyor",
-    "author": "Konveyor",
+    "publisher": "redhat",
+    "author": "Red Hat",
     "theme": "kai",
     "preview": true,
     "icon": "resources/konveyor-icon-color.png",
@@ -75,6 +75,11 @@
                 "title": "Run",
                 "enablement": "cli-enabled",
                 "icon": "$(run)"
+            },
+            {
+                "category": "MTA",
+                "command": "rhamt.rerun",
+                "title": "Rerun"
             },
             {
                 "category": "MTA",
@@ -158,7 +163,7 @@
                 "category": "MTA",
                 "command": "rhamt.applyQuickfixes",
                 "title": "Apply All Quickfixes"
-            }, 
+            },
             {
                 "command": "rhamt.showCustomPanel",
                 "title": "Show Custom Panel"
@@ -191,11 +196,6 @@
                 "category": "MTA",
                 "command": "rhamt.Kai-Fix-Files",
                 "title": "Kai-Fix All"
-            },
-            {
-                "category": "MTA",
-                "command": "rhamt.Stop",
-                "title": "Stop Process"
             }
         ],
         "configuration": [
@@ -334,11 +334,6 @@
                     "group": "rhamt@0"
                 },
                 {
-                    "command": "rhamt.Stop",
-                    "when": "view == rhamtExplorerView && viewItem =~ /file/i",
-                    "group": "rhamt@0"
-                },
-                {
                     "command": "rhamt.activate",
                     "when": "view == rhamtExplorerView && viewItem =~ /hasResults-notActive/i",
                     "group": "inline"
@@ -349,25 +344,7 @@
                     "group": "inline"
                 }
             ]
-        },
-        "colors": [
-            {
-                "id": "kaiFix.analyzing",
-                "description": "Color for analyzing icon",
-                "defaults": {
-                    "light": "#0037ff",
-                    "dark": "#0037ff"
-                }
-            },
-            {
-                "id": "kaiFix.fixing",
-                "description": "Color for fixing icon",
-                "defaults": {
-                    "light": "#4CAF50",
-                    "dark": "#4CAF50"
-                }
-            }
-        ]
+        }
     },
     "devDependencies": {
         "@types/chai": "^4.1.7",
@@ -413,6 +390,7 @@
         "socket.io": "^2.1.1",
         "socket.io-client": "^2.1.1",
         "tmp": "^0.1.0",
-        "vscode-nls": "^2.0.2"
+        "vscode-nls": "^2.0.2",
+        "yaml": "^2.5.0"
     }
 }

@@ -114,7 +114,7 @@ export class LocalProviderRunner implements ProviderRunner {
     }
 }
 
-export const getProviderConfigs = (providers: ProviderCoordinates[], libPath: string, inputLocations: string[]): ProviderConfig[] => {
+export const getProviderConfigs = (providers: ProviderCoordinates[], libPath: string, inputLocations: string[], relativePath ?: string): ProviderConfig[] => {
     const defaultProviders: ProviderConfig[] = [{
         'name': 'builtin',
         'initConfig': (inputLocations || []).map((val) => ({ 'location': val })),
@@ -131,8 +131,7 @@ export const getProviderConfigs = (providers: ProviderCoordinates[], libPath: st
                             'lspServerName': 'java',
                             'lspServerPath': path.join(libPath, 'java', 'jdtls', 'bin', 'jdtls'),
                             'depOpenSourceLabelsFile': path.join(libPath, 'java', 'maven.index'),
-                            'includedPaths': [
-                                'src/main/java/com/redhat/coolstore/service/',
+                            'includedPaths': [ relativePath,
                             ],
                             'bundles': path.join(libPath, 'java', 'jdtls', 'java-analyzer-bundle',
                                 'java-analyzer-bundle.core', 'target', 'java-analyzer-bundle.core-1.0.0-SNAPSHOT.jar'),

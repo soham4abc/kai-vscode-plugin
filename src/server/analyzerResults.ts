@@ -47,7 +47,9 @@ export class AnalyzerResults {
             classifications: [],
             issueByFile: new Map<string, IHint[]>() 
         };
-        const rulesets = this.jsonResults[0]['rulesets'];
+        console.log(`Rulesets: ${this.jsonResults}`);
+       // const rulesets = this.jsonResults[0]['rulesets'];
+       const rulesets = this.jsonResults;
         const outputChannel1 = vscode.window.createOutputChannel("Analyzer Result");
             outputChannel1.show(true);
         rulesets.forEach(ruleset => {

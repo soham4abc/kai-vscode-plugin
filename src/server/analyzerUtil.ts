@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import * as yaml from 'yaml';
 import { RhamtProcessController } from './rhamtProcessController';
 import { ModelService } from '../model/modelService';
 import { rhamtChannel } from '../util/console';
@@ -10,19 +11,22 @@ import * as fs from 'fs-extra';
 import { DataProvider } from '../tree/dataProvider';
 import { ProcessRunner } from './processRunner';
 import { AnalyzerProcessController } from './analyzerProcessController';
-import { RhamtConfiguration, WINDOW } from './analyzerModel';
+import { RhamtConfiguration } from './analyzerModel';
 import * as path from 'path';
 import { AnalyzerResults } from './analyzerResults';
 import { AnalyzerProgressMonitor } from './analyzerProgressMonitor';
+
 const START_TIMEOUT = 60000;
 
 export class AnalyzerUtil {
 
     static activeProcessController: AnalyzerProcessController;
 
-    static async analyze(dataProvider: DataProvider, config: RhamtConfiguration, modelService: ModelService, onStarted: () => void, onComplete: () => void): Promise<RhamtProcessController> {
+    static async analyze(outputLocation: String, reanalyze: boolean ,dataProvider: DataProvider, config: RhamtConfiguration, modelService: ModelService,onStarted: () => void, onComplete: () => void): Promise<RhamtProcessController> {
         let cli = undefined;
+        let  outPutPath = outputLocation || config.options['output'];
         try {
+        
             const configCli = config.options['cli'] as string;
             if (configCli) {
                 cli = configCli.trim();
@@ -54,8 +58,14 @@ export class AnalyzerUtil {
                 let params = [];
                 try {
                     progress.report({ message: 'Verifying configuration' });
-                    params = await AnalyzerUtil.buildAnalyzerParams(
-                        path.join(dataProvider.context.extensionPath, "lib"), config);
+                    if (reanalyze){
+                        params = await AnalyzerUtil.rebuildAnalyzerParams(
+                            path.join(dataProvider.context.extensionPath, "lib"), config, outPutPath);
+                    } else {
+                        params = await AnalyzerUtil.buildAnalyzerParams(
+                            path.join(dataProvider.context.extensionPath, "lib"), config);
+                    }
+                    
                 }
                 catch (e) {
                     vscode.window.showErrorMessage(`Error: ${e}`);
@@ -85,13 +95,13 @@ export class AnalyzerUtil {
                 // create log file for analysis
                 let outputStream: NodeJS.WritableStream;
                 try {
-                    outputStream = fs.createWriteStream(path.join(config.options['output'], 'analysis.log'));
+                    outputStream = fs.createWriteStream(path.join(outPutPath, 'analysis.log'));
                 } catch(e) {
                     console.log("failed creating a log file for analysis");
                 }
                 try {
                     processController = AnalyzerUtil.activeProcessController = await ProcessRunner.run(config.rhamtExecutable, params, START_TIMEOUT, {
-                        cwd: config.options['output'],
+                        cwd: outPutPath,
                         env: Object.assign(
                             {},
                             process.env,
@@ -113,7 +123,7 @@ export class AnalyzerUtil {
                 token.onCancellationRequested(() => {
                     cancelled = true;
                     config.cancelled = true;
-                    AnalyzerUtil.updateRunEnablement(true, dataProvider, config);
+                    AnalyzerUtil.updateRunEnablement(true, dataProvider, config);  
                     if (AnalyzerUtil.activeProcessController) {
                         AnalyzerUtil.activeProcessController.shutdown();
                     }
@@ -137,100 +147,6 @@ export class AnalyzerUtil {
         vscode.commands.executeCommand('setContext', 'cli-enabled', enabled);
         vscode.commands.executeCommand('setContext', 'delete-enabled', enabled);
     }
-
-    // private static buildParams(config: RhamtConfiguration): Promise<any[]> {
-    //     const params = [];
-    //     const options = config.options;
-    //     params.push('analyze');
-    //     params.push('--input');
-    //     const input = options['input'];
-    //     if (!input || input.length === 0) {
-    //         return Promise.reject('input is missing from configuration');
-    //     }
-    //     for (let anInput of input) {
-    //         if (!fs.existsSync(anInput)) {
-    //             return Promise.reject(`input does not exist: ${anInput}`);
-    //         }
-    //     }
-    //     input.forEach(entry => {
-    //         params.push(`${entry}`);
-    //     });
-    //     params.push('--output');
-    //     const output = config.options['output'];
-    //     if (!output || output === '') {
-    //         return Promise.reject('output is missing from configuration');
-    //     }
-    //     params.push(`${output}`);
-
-    //     params.push('--mode');
-    //     const mode = config.options['mode'];
-    //     if (!mode || mode === '') {
-    //         return Promise.reject('mode is missing from configuration');
-    //     }
-    //     params.push(`${mode}`);
-
-    //     if (options['skip-static-report']) {
-    //         params.push('--skip-static-report');
-    //     }
-
-    //     if (options['overwrite']) {
-    //         params.push('--overwrite');
-    //     }
-
-    //     if (options['enable-default-rulesets']) {
-    //         params.push('--enable-default-rulesets=true');
-    //     } else{
-    //         params.push('--enable-default-rulesets=false');
-    //     }
-
-    //     if (options['json-output']) {
-    //         params.push('--json-output');
-    //     }
-
-    //     if (options['analyze-known-libraries']) {
-    //         params.push('--analyze-known-libraries');
-    //     }
-
-    //     let target = options['target'];
-    //     if (!target) {
-    //         target = [];
-    //     }
-    //     if (target.length === 0) {
-    //         target.push('eap7');
-    //     }
-    //     target.forEach((i: any) => {
-    //         params.push('--target');
-    //         params.push(i);
-    //     });
-
-    //     // source
-    //     let source = options['source'];
-    //     if (!source) {
-    //         source = [];
-    //     }
-    //     source.forEach((i: any) => {
-    //         params.push('--source');
-    //         params.push(i);
-    //     });
-
-    //     // rules
-    //     let rules = options['rules'];
-    //     if (rules && rules.length > 0) {
-    //         rules.forEach(entry => {
-    //             params.push('--rules');
-    //             params.push(`${entry}`);
-    //         });
-    //     }
-
-    //     console.log("Options: ")
-    //     for (const key in config.options) {
-    //         if (config.options.hasOwnProperty(key)) {
-    //             console.log(`${key}: ${config.options[key]}`);
-    //         }
-    //     }
-    //     console.log("Params: " + params)
-    //     return Promise.resolve(params);
-    // }
 
     private static buildAnalyzerParams(libPath: string, config: RhamtConfiguration): Promise<any[]> {
         const params = [];
@@ -296,13 +212,14 @@ export class AnalyzerUtil {
         return Promise.resolve(params);
     }
 
-    public static async loadAnalyzerResults(config: RhamtConfiguration, clearSummary: boolean = true): Promise<any> {
+    public static async loadAnalyzerResults(config: RhamtConfiguration, clearSummary: boolean = true, location ?: string): Promise<any> {
         return new Promise<void>(async (resolve, reject) => {
             let results = null;
+            let  outPutPath = location || config.options['output'];
             try {
                 if (clearSummary) {
                     let tries = 0;
-                    const output = config.options['output'];
+                    const output = outPutPath;
                     const location = path.resolve(output, ...config.static());
 
                     const done = () => {
@@ -311,7 +228,7 @@ export class AnalyzerUtil {
                             console.log('output exist: ' + location);
                             return true;
                         }
-                        else if (++tries > 8) {
+                        else if (++tries > 15) {
                             console.log('output was not found after long delay!');
                             return true;
                         }
@@ -327,7 +244,8 @@ export class AnalyzerUtil {
                     await new Promise(poll);
 
                 }
-                results = await AnalyzerUtil.readAnalyzerResults(config);
+                results = await AnalyzerUtil.readAnalyzerResults(config, outPutPath);
+               
             }
             catch (e) {
                 console.log(`Error reading analyzer results.`);
@@ -341,7 +259,7 @@ export class AnalyzerUtil {
                 if (clearSummary) {
                     config.summary = {
                         skippedReports: false,
-                        outputLocation: config.options['output'],
+                        outputLocation: outPutPath,
                         executedTimestamp: '',
                         executable: config.rhamtExecutable,
                         executedTimestampRaw: '',
@@ -350,6 +268,7 @@ export class AnalyzerUtil {
                     config.summary.quickfixes = [];
                     config.summary.hintCount = config.results.model.hints.length;
                     config.summary.classificationCount = 0;
+                    
                 }
                 return resolve();
             }
@@ -360,14 +279,17 @@ export class AnalyzerUtil {
         });
     }
 
-    public static async readAnalyzerResults(config: RhamtConfiguration): Promise<any> {
+    public static async readAnalyzerResults(config: RhamtConfiguration, location: string ): Promise<any> {
         return new Promise<void>((resolve, reject) => {
             try {
-                let location = config.options['output'];
+                vscode.window.showInformationMessage(`------readAnalyzerResults------ ${location}`);
+                //let location = config.options['output'];
                 if (!location) {
-                    return reject(`Error loading analyzer results. Cannot resolve configuraiton output location.`);
+                    return reject(`Error loading analyzer results. Cannot resolve configuration output location.`);
                 }
-                location = path.resolve(location, ...config.static());
+                //location = path.resolve(location, ...config.static());
+                location = path.resolve(location, 'output.yaml');
+                console.log(`location: ${location}`);
                 fs.exists(location, async exists => {
                     if (exists) {
                         try {
@@ -376,11 +298,17 @@ export class AnalyzerUtil {
                                     return reject(err);
                                 }
                                 try {
-                                    const dataJson = JSON.parse(data.replace(WINDOW, ''));
+                                    console.log('Raw data:');
+                                    console.log(data);
+
+                                    const dataJson = yaml.parse(data);
+                                    console.log('Json data:');
+                                    console.log(dataJson);
+
                                     return resolve(dataJson);
                                 }
                                 catch (e) {
-                                    console.log('Error parsing JSON');
+                                    console.log('Error parsing YAML');
                                     console.log(e);
                                     return reject(e);
                                 }
@@ -388,14 +316,12 @@ export class AnalyzerUtil {
                         } catch (e) {
                             return reject(`Error loading analyzer results for configuration at ${location} - ${e}`);
                         }
-                    }
-                    else {
+                    } else {
                         return reject(`Output location does not exist - ${location}`);
                     }
                 });
-            }
-            catch (e) {
-                return Promise.reject(`Error loading analzyer results from (${config.getResultsLocation()}): ${e}`);
+            } catch (e) {
+                return Promise.reject(`Error loading analyzer results from (${config.getResultsLocation()}): ${e}`);
             }
         });
     }
@@ -422,9 +348,10 @@ export class AnalyzerUtil {
         return [];
     }
 
-    public static generateStaticReport(libPath: string, config: RhamtConfiguration): Promise<void> {
+    public static generateStaticReport(libPath: string, config: RhamtConfiguration, outputPath: string): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
-            const outputPath = config.options['output'];
+
+            //const outputPath = config.options['output'];
             const inputName = config.options['input'] ? path.basename(config.options['input'][0]) : config.name;
             let analysisOutput = '';
             let depOutput = '';
@@ -453,8 +380,72 @@ export class AnalyzerUtil {
                     {}, null, (msg: string) => console.log(msg), () => {})
                 resolve();
             } catch (e) {
-                reject(`failed to generate static report - ${e}`);
+                reject(`failed to generate static report  - ${e}`);
             }
         });
     } 
+
+
+    private static rebuildAnalyzerParams(libPath: string, config: RhamtConfiguration, outputlocation: string): Promise<any[]> {
+        const params = [];
+        const options = config.options;
+
+        const input = options['input'];
+        if (!input || input.length === 0) {
+            return Promise.reject('input is missing from configuration');
+        }
+        for (let anInput of input) {
+            if (!fs.existsSync(anInput)) {
+                return Promise.reject(`input does not exist: ${anInput}`);
+            }
+        }
+
+        const output = outputlocation;
+        
+        params.push("--verbose");
+        params.push("20");
+        params.push('--output-file');
+        params.push(`${output}/output.yaml`);
+        params.push('--dep-output-file');
+        params.push(`${output}/dep-output.yaml`);
+        params.push(`--provider-settings`);
+        params.push(`${output}/provider_settings.json`);
+
+        const mode = config.options['mode'];
+        if (!mode || mode === '') {
+            return Promise.reject('mode is missing from configuration');
+        }
+        params.push('--analysis-mode');
+        params.push(`${mode}`);
+
+        if (options['enable-default-rulesets']) {
+            params.push('--rules');
+            params.push(path.join(libPath, 'rulesets'))
+        }
+
+        if (!options['analyze-known-libraries']) {
+            params.push('--dep-label-selector="(!konveyor.io/dep-source=open-source)"');
+        }
+
+        params.push(...this.buildLabelSelectorOption(options['source'] || [], options['target'] || []))
+
+        // rules
+        let rules = options['rules'];
+        if (rules && rules.length > 0) {
+            rules.forEach(entry => {
+                params.push('--rules');
+                params.push(`${entry}`);
+            });
+        }
+
+        console.log("Options: ")
+        for (const key in config.options) {
+            if (config.options.hasOwnProperty(key)) {
+                console.log(`${key}: ${config.options[key]}`);
+            }
+        }
+        console.log("Params: " + params)
+        return Promise.resolve(params);
+    }
+
 }

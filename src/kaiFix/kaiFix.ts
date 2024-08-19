@@ -54,11 +54,11 @@ export class KaiFixDetails {
             this.modelService.dataProvider.refreshNode(fileNode);
             if (fileMap.get(uri.fsPath) === undefined) {
                 vscode.window.showInformationMessage(`No entry exists in Map, so adding...+ ${fileNode.file}`);
-                this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
                // this.modelService.reload();
                 //Run analyzer-lsp 
-                vscode.commands.executeCommand('rhamt.runConfiguration').then(() => {
-                    fileNode.setInProgress(true, "analyzing");
+                //const config = fileNode.config; 
+               // window.showInformationMessage(`config : ${config.name}`);
+                vscode.commands.executeCommand('rhamt.rerun', fileNode).then(() => {
                     this.globalRequestsManager.handleRequest(uri.fsPath, "Kantra");
                 });
                 //And add this request to the global map
