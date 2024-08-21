@@ -95,7 +95,7 @@ export class KaiFixDetails {
                 file_contents: content,
                 application_name: workspaceFolder,
                 incidents: incidents,
-                include_llm_results: "True"
+                include_llm_results: true
             };
 
             const request: Requests = {
@@ -529,16 +529,12 @@ export class KaiFixDetails {
 
     private formatHintsToIncidents(hints: IHint[]) {
         return hints.map(hint => ({
-            violation_name: hint.ruleId,
             ruleset_name: hint.rulesetName,
-            incident_variables: {
-                file: hint.variables['file'] || '',
-                kind: hint.variables['kind'] || '',
-                name: hint.variables['name'] || '',
-                package: hint.variables['package'] || '',
-            },
-            line_number: hint.lineNumber,
-            analysis_message: hint.hint,
+            ruleset_description: hint.ruleSetDiscription || 'No Discription', 
+            violation_name: hint.ruleId,     
+            violation_description: hint.violationDiscription || 'No Discription',
+            uri : hint.file || '',
+            message: hint.hint || 'No message', 
         }));
     }
 }

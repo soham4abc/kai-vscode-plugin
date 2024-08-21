@@ -250,7 +250,7 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
                 return { error: `HTTP error! status: ${response.status}` };
             }
 
-            const responseText = await response.text();
+            const responseText = await response.json();
             this.outputChannel.appendLine(`Kai backend processed for task ${this.request.name}`);
             return { result: responseText };
         } catch (error) {

@@ -145,6 +145,8 @@ export interface IIssue extends IUniqueElement {
     file: string;
     severity: string;
     ruleId: string;
+    ruleSetDiscription: string;
+    violationDiscription: string;
     rulesetName: string;
     effort: string;
     links: ILink[];
