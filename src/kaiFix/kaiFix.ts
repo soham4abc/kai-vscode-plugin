@@ -32,7 +32,7 @@ export class KaiFixDetails {
     private outputChannel: vscode.OutputChannel;
     private _fileNodes: Map<string, FileNode> = new Map();
 
-    constructor(context: ExtensionContext, modelService: ModelService, fileNodeMap?: Map<string, FileNode>) {
+    constructor(context: ExtensionContext, private modelService: ModelService, fileNodeMap ?:  Map<string, FileNode> ) {
         this.context = context;
         this.outputChannel = window.createOutputChannel("KaiFix Output");
         this.taskProvider = new MyTaskProvider(this.outputChannel, this);

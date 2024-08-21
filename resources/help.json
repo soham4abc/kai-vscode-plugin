@@ -15,6 +15,13 @@
         "required": false
       },
       {
+        "name": "provider",
+        "description": "Analysis language provider",
+        "type": "String",
+        "ui-type": ["single"],
+        "required": true
+      },
+      {
         "name": "input",
         "description": "Path to application source code. Note: Please select only one path at a time. To change the input entry, use the cancel button.",
         "type": "Path",
