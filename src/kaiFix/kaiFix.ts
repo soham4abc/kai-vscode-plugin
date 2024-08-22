@@ -43,19 +43,45 @@ export class KaiFixDetails {
         const watcher = workspace.createFileSystemWatcher('**/*', false, false, false);
         watcher.onDidChange(uri => {
             console.log(`File changed: ${uri.fsPath}`);
-            window.showInformationMessage(`File changed: ${uri.fsPath}`);
-            const fileNode = this._fileNodes.get(uri.fsPath);
-            if (fileNode) {
-                fileNode.setInProgress(true, "analyzing");
-                commands.executeCommand('rhamt.Stop', fileNode).then(() => {
-                    this.stopFileProcess(fileNode.file);
-                });
+            vscode.window.showInformationMessage(`File changed: ${uri.fsPath}`);
+            if (this._fileNodes.size == 0 ){
+                vscode.window.showInformationMessage(`fileNodes Size  zero=  ${this._fileNodes.size}`);
             }
+            vscode.window.showInformationMessage(`fileNodes map size =  ${this._fileNodes.size}`);
+            const fileNode = this._fileNodes.get(uri.fsPath); 
+            //const fileMap = this.globalRequestsManager.getFileMap();
+            this.modelService.dataProvider.refreshNode(fileNode);
+                const request: Requests = {
+                    id: incrementTaskCounter(),
+                    name: undefined,
+                    type: 'kantra',
+                    file: fileNode.file,
+                    data: fileNode as FileNode
+                }; 
+                if (this.fileStateMap.get(fileNode.file)?.inProgress) {
+                    window.showInformationMessage(`Process already running for file: ${fileNode.file}, Cancelling current process and reanalyzing current changes!`);
+                    if (fileNode) {
+                                vscode.commands.executeCommand('rhamt.Stop', fileNode).then(() => {
+                                    addRequest(request);
+                                    this.taskProvider.processQueue();
+                                });  
+                        }
+                } else {
+                    vscode.window.showInformationMessage(`No entry exists in Map, so adding...+ ${fileNode.file}`);
+                    // this.modelService.reload();
+                     //const config = fileNode.config; 
+                    // window.showInformationMessage(`config : ${config.name}`);
+                    addRequest(request);
+                    this.taskProvider.processQueue();
+                    
+                }
+    
         });
         context.subscriptions.push(watcher);
 
         context.subscriptions.push(commands.registerCommand('rhamt.Stop', async item => {
             const fileNode = item as FileNode;
+            this.taskProvider.stopTask(fileNode.file);
             this.stopFileProcess(fileNode.file);
         }));
 
@@ -105,9 +131,10 @@ export class KaiFixDetails {
                 file: filePath,
                 data: postData
             };
-
+            fileNode.setInProgress(true, "fixing");
             addRequest(request);
             this.taskProvider.processQueue();
+            fileNode.setInProgress(false);
         }));
     }
 
