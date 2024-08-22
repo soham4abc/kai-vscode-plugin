@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import fetch from 'node-fetch';
 import * as path from 'path';
+import { FileNode } from '../tree/fileNode';
 
 export interface Requests {
     id: number;
@@ -219,7 +220,7 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
         if (this.request.type === 'kai') {
             result = await this.callKaiBackend();
         } else if (this.request.type === 'kantra') {
-            result = await this.runKantraBinary();
+            result = await this.runKantraBinary(this.request.data);
         }
 
         if (runningTasks.has(this.request.id)) {
@@ -259,9 +260,9 @@ class SimplePseudoterminal implements vscode.Pseudoterminal {
         }
     }
 
-    private async runKantraBinary(): Promise<any> {
+    private async runKantraBinary(fileNode :FileNode): Promise<any> {
         this.outputChannel.appendLine(`Running Kantra task for task ${this.request.name}`);
-        // todo: change here 
+        vscode.commands.executeCommand('rhamt.rerun', fileNode);
         return new Promise<any>((resolve) => {
             setTimeout(() => {
                 if (!runningTasks.has(this.request.id)) {
