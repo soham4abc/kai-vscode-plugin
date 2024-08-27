@@ -85,6 +85,7 @@ export class KaiFixDetails {
             this.stopFileProcess(fileNode.file);
         }));
 
+
         context.subscriptions.push(
             window.registerWebviewViewProvider(
                 MyWebViewProvider.viewType,
