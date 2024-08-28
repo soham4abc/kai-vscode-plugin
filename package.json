@@ -78,6 +78,16 @@
             },
             {
                 "category": "MTA",
+                "command": "rhamt.rerun",
+                "title": "Rerun"
+            },
+            {
+                "category": "MTA",
+                "command": "rhamt.runProviders",
+                "title": "Run Provider"
+            },
+            {
+                "category": "MTA",
                 "command": "rhamt.deleteConfiguration",
                 "title": "Delete",
                 "icon": "$(trash)"
@@ -153,7 +163,7 @@
                 "category": "MTA",
                 "command": "rhamt.applyQuickfixes",
                 "title": "Apply All Quickfixes"
-            }, 
+            },
             {
                 "command": "rhamt.showCustomPanel",
                 "title": "Show Custom Panel"
@@ -239,7 +249,6 @@
                     "name": "Kai Fix Actions",
                     "visibility": "visible"
                 }
-
             ],
             "myCustomViewContainer": [
                 {
@@ -359,7 +368,7 @@
                 }
             }
         ]
-    },
+   },
     "devDependencies": {
         "@types/chai": "^4.1.7",
         "@types/cheerio": "0.22.10",
@@ -391,6 +400,7 @@
         "marked": "^12.0.1",
         "mime-types": "^2.1.26",
         "mkdirp": "^0.5.1",
+        "net": "^1.0.2",
         "node-fetch": "^2.7.0",
         "node-stream-zip": "^1.8.0",
         "open": "^7.0.3",
@@ -403,6 +413,7 @@
         "socket.io": "^2.1.1",
         "socket.io-client": "^2.1.1",
         "tmp": "^0.1.0",
-        "vscode-nls": "^2.0.2"
+        "vscode-nls": "^2.0.2",
+        "yaml": "^2.5.0"
     }
 }
