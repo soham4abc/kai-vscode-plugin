@@ -212,71 +212,60 @@ export class AnalyzerUtil {
         return Promise.resolve(params);
     }
 
-    public static async loadAnalyzerResults(config: RhamtConfiguration, clearSummary: boolean = true, location ?: string): Promise<any> {
-        return new Promise<void>(async (resolve, reject) => {
-            let results = null;
-            let  outPutPath = location || config.options['output'];
-            try {
-                if (clearSummary) {
-                    let tries = 0;
-                    const output = outPutPath;
-                    const location = path.resolve(output, ...config.static());
-
-                    const done = () => {
-                        const exists = fs.existsSync(location);
-                        if (exists) {
-                            console.log('output exist: ' + location);
-                            return true;
-                        }
-                        else if (++tries > 15) {
-                            console.log('output was not found after long delay!');
-                            return true;
-                        }
-                        console.log('output does not exist - ' + location);
-                        return false;
-                    };
-
-                    const poll = resolve => {
-                        if (done()) resolve();
-                        else setTimeout(_ => poll(resolve), config.delay);
-                    }
-
-                    await new Promise(poll);
-
-                }
-                results = await AnalyzerUtil.readAnalyzerResults(config, outPutPath);
-               
+    public static async loadAnalyzerResults(config: RhamtConfiguration, clearSummary: boolean = true, location?: string): Promise<void> {
+        let results = null;
+        const outPutPath = location || config.options['output'];
+        try {
+            if (clearSummary) {
+                await this.pollForOutput(config, outPutPath);
             }
-            catch (e) {
-                console.log(`Error reading analyzer results.`);
-                console.log(e);
-                return reject(`Error reading analyzer results.`);
+    
+            results = await AnalyzerUtil.readAnalyzerResults(config, outPutPath);
+            
+            const analyzerResults = new AnalyzerResults(results, config);
+            await analyzerResults.init();
+            config.results = analyzerResults;
+    
+            if (clearSummary) {
+                this.clearSummary(config, outPutPath);
             }
-            try {
-                const analyzerResults = new AnalyzerResults(results, config);
-                await analyzerResults.init();
-                config.results = analyzerResults;
-                if (clearSummary) {
-                    config.summary = {
-                        skippedReports: false,
-                        outputLocation: outPutPath,
-                        executedTimestamp: '',
-                        executable: config.rhamtExecutable,
-                        executedTimestampRaw: '',
-                        active: true
-                    };
-                    config.summary.quickfixes = [];
-                    config.summary.hintCount = config.results.model.hints.length;
-                    config.summary.classificationCount = 0;
-                    
-                }
-                return resolve();
+    
+        } catch (error) {
+            console.error('Error:', error);
+            throw new Error('Error loading analyzer results.');
+        }
+    }
+    
+    private static async pollForOutput(config: RhamtConfiguration, outPutPath: string): Promise<void> {
+        let tries = 0;
+        const location = path.resolve(outPutPath, ...config.static());
+    
+        while (true) {
+            const exists = fs.existsSync(location);
+            if (exists) {
+                console.log('Output exists: ' + location);
+                break;
+            } else if (++tries > 15) {
+                console.log('Output was not found after long delay!');
+                break;
             }
-            catch (e) {
-                console.log('Error processing analyzer results');
-                return reject(`Error processing analyzer results.`);
-            }
-        });
+            console.log('Output does not exist - ' + location);
+            await new Promise(resolve => setTimeout(resolve, config.delay));
+        }
+    }
+    
+    private static clearSummary(config: RhamtConfiguration, outPutPath: string): void {
+        config.summary = {
+            skippedReports: false,
+            outputLocation: outPutPath,
+            executedTimestamp: '',
+            executable: config.rhamtExecutable,
+            executedTimestampRaw: '',
+            active: true,
+            quickfixes: [],
+            hintCount: config.results.model.hints.length,
+            classificationCount: 0
+        };
     }
 
     public static async readAnalyzerResults(config: RhamtConfiguration, location: string ): Promise<any> {
